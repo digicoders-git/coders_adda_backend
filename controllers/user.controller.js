@@ -1,0 +1,423 @@
+import User from "../models/user.model.js";
+import { generateToken } from "../utils/jwt.js";
+import cloudinary from "../config/cloudinary.js";
+
+
+// Fixed OTP
+const FIXED_OTP = "123456";
+
+// Mobile OTP Login
+export const mobileLogin = async (req, res) => {
+  try {
+    const { mobile, otp } = req.body;
+
+    // Validation
+    if (!mobile) {
+      return res.status(400).json({
+        success: false,
+        message: "Mobile number is required"
+      });
+    }
+
+    if (!otp) {
+      return res.status(400).json({
+        success: false,
+        message: "OTP is required"
+      });
+    }
+
+    // OTP verification
+    if (otp !== FIXED_OTP) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OTP. Use 123456"
+      });
+    }
+
+    // Find existing user
+    let user = await User.findOne({ mobile });
+
+    if (!user) {
+      // Create new user
+      user = new User({
+        mobile,
+        isMobileVerified: true,
+        loginMethod: 'mobile'
+      });
+      await user.save();
+    } else {
+      // Update existing user
+      user.isMobileVerified = true;
+      user.loginMethod = 'mobile';
+      await user.save();
+    }
+
+    // Generate JWT token
+    const token = generateToken(user._id);
+
+    // Success response
+    res.status(200).json({
+      success: true,
+      message: "Login successful",
+      token,
+      user: {
+        id: user._id,
+        mobile: user.mobile,
+        isMobileVerified: user.isMobileVerified,
+        loginMethod: user.loginMethod
+      }
+    });
+
+  } catch (error) {
+    console.error("Mobile login error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+};
+
+// Google Login
+export const googleLogin = async (req, res) => {
+  try {
+    const { googleData, mobile } = req.body;
+
+    // Validation
+    if (!googleData || !googleData.id) {
+      return res.status(400).json({
+        success: false,
+        message: "Google data is required"
+      });
+    }
+
+    if (!mobile) {
+      return res.status(400).json({
+        success: false,
+        message: "Mobile number is required for Google login"
+      });
+    }
+
+    const { id, email, name, picture, email_verified } = googleData;
+
+    // Check if mobile already exists
+    let user = await User.findOne({ mobile });
+
+    if (user) {
+      // Update existing user with Google data
+      user.googleId = id;
+      user.email = email;
+      user.name = name;
+      user.picture = picture;
+      user.loginMethod = 'google';
+      await user.save();
+    } else {
+      // Create new user with Google data
+      user = new User({
+        mobile,
+        googleId: id,
+        email,
+        name,
+        picture,
+        loginMethod: 'google'
+      });
+      await user.save();
+    }
+
+    // Generate JWT token
+    const token = generateToken(user._id);
+
+    // Success response
+    res.status(200).json({
+      success: true,
+      message: "Google login successful",
+      token,
+      user: {
+        id: user._id,
+        mobile: user.mobile,
+        email: user.email,
+        name: user.name,
+        picture: user.picture,
+        loginMethod: user.loginMethod
+      }
+    });
+
+  } catch (error) {
+    console.error("Google login error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+};
+
+// Get User Profile
+
+export const getProfile = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const user = await User.findById(userId)
+      .select("-__v") // internal version hide
+
+      // ================= COURSES =================
+      .populate({
+        path: "purchaseCourses",
+        select: "title thumbnail promoVideo priceType price technology badge isActive category instructor",
+        populate: [
+          { path: "category", select: "name" },
+          { path: "instructor", select: "name email" }
+        ]
+      })
+
+      // ================= EBOOKS =================
+      .populate({
+        path: "purchaseEbooks",
+        select: "title authorName priceType price pdf category isActive",
+        populate: [
+          { path: "category", select: "name" }
+        ]
+      })
+
+      // ================= SUBSCRIPTIONS =================
+      .populate({
+        path: "purchaseSubscriptions",
+        select: "planType duration planPricingType price freeJobs planBenefits includedCourses includedEbooks",
+        populate: [
+          {
+            path: "includedCourses",
+            select: "title thumbnail priceType price"
+          },
+          {
+            path: "includedEbooks",
+            select: "title pdf priceType price"
+          }
+        ]
+      })
+
+      // ================= JOBS =================
+      .populate({
+        path: "purchaseJobs",
+        select: "jobTitle companyName location salaryPackage requiredExperience workType isActive"
+      });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.json({
+      success: true,
+      user
+    });
+  } catch (error) {
+    console.error("Get profile error:", error);
+    return res.status(500).json({ message: "Failed to load profile" });
+  }
+};
+
+
+
+
+/* ===============================
+   UPDATE USER PROFILE + IMAGE
+================================= */
+export const updateUserProfile = async (req, res) => {
+  try {
+    const userId = req.userId; // auth middleware se
+
+    const {
+      name,
+      email,
+      about,
+      socialLinks,
+      college,
+      course,
+      semester,
+      branch,
+      technology,
+      skills
+    } = req.body;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    // 🔹 Normal fields update
+    if (name !== undefined) user.name = name;
+    if (email !== undefined) user.email = email;
+    if (about !== undefined) user.about = about;
+
+    if (socialLinks !== undefined) {
+      // agar string aa raha hai to parse kar lo
+      user.socialLinks = typeof socialLinks === "string"
+        ? JSON.parse(socialLinks)
+        : socialLinks;
+    }
+
+    if (college !== undefined) user.college = college;
+    if (course !== undefined) user.course = course;
+    if (semester !== undefined) user.semester = semester;
+    if (branch !== undefined) user.branch = branch;
+
+    if (technology !== undefined) {
+      user.technology = typeof technology === "string"
+        ? JSON.parse(technology)
+        : technology;
+    }
+    if (skills !== undefined) {
+      user.skills = typeof skills === "string"
+        ? JSON.parse(skills)
+        : skills;
+    }
+
+    // 🖼️ Profile Picture Upload
+    if (req.file) {
+      // Purani image delete (optional but recommended)
+      if (user.profilePicture && user.profilePicture.public_id) {
+        await cloudinary.uploader.destroy(user.profilePicture.public_id);
+      }
+
+      const uploadResult = await cloudinary.uploader.upload(req.file.path, {
+        folder: "users/profile_pictures",
+        crop: "fill"
+      });
+
+      user.profilePicture = {
+        url: uploadResult.secure_url,
+        public_id: uploadResult.public_id
+      };
+    }
+
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Profile updated successfully",
+      data: user
+    });
+
+  } catch (error) {
+    console.error("Update profile error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+      error: error.message
+    });
+  }
+};
+
+// export const purchaseCourse = async (req, res) => {
+//   try {
+//     const userId = req.userId;
+//     const { courseId } = req.body;
+
+//     const user = await User.findById(userId);
+
+//     if (!user) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "User not found"
+//       });
+//     }
+
+//     // ❌ Already purchased check
+//     if (user.purchaseCourses.includes(courseId)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Course already purchased"
+//       });
+//     }
+
+//     // ✅ Push courseId into array
+//     user.purchaseCourses.push(courseId);
+
+//     // 💾 Save user
+//     await user.save();
+
+//     // 🔥 Populate purchased courses
+//     const updatedUser = await User.findById(userId).populate("purchaseCourses");
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Course purchased successfully",
+//       user: updatedUser
+//     });
+
+//   } catch (error) {
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal Server Error",
+//       error: error.message
+//     });
+//   }
+// };
+
+
+
+export const updateUserIsActive = async (req, res) => {
+  try {
+    const { id } = req.params
+    // console.log(id)
+    const user = await User.findOne({ _id: id });
+    // console.log(user)
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found !" });
+    }
+
+
+    const isBlockedUser = await User.findOneAndUpdate({ _id: id }, { isActive: !user.isActive }, { new: true })
+    // console.log(isBlockedUser)
+    return res.status(201).json({ message: isBlockedUser.isActive ? "User blocked" : "User unblocked", isBlockedUser })
+
+  } catch (error) {
+    return res.status(500).json({ message: "Inernal Server Error", error: error.message })
+  }
+}
+
+export const getAllUsers = async (req, res) => {
+  try {
+    const { search, isActive, page = 1, limit = 10 } = req.query;
+
+    let filter = {};
+
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { mobile: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    if (isActive !== undefined) {
+      filter.isActive = isActive === "true";
+    }
+
+    const skip = (page - 1) * limit;
+
+    const total = await User.countDocuments(filter);
+    const data = await User.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(Number(limit));
+
+    return res.status(200).json({
+      success: true,
+      total,
+      page: Number(page),
+      limit: Number(limit),
+      totalPages: Math.ceil(total / limit),
+      data
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+      error: error.message
+    });
+  }
+};
