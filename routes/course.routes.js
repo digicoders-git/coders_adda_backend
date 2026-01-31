@@ -32,6 +32,14 @@ courseRoute.put(
   ]),
   updateCourse
 );
+courseRoute.patch(
+  "/update/:id",
+  upload.fields([
+    { name: "thumbnail", maxCount: 1 },
+    { name: "promoVideo", maxCount: 1 }
+  ]),
+  updateCourse
+);
 
 courseRoute.delete("/delete/:id", deleteCourse);
 courseRoute.patch("/toggle-status/:id", toggleCourseStatus);

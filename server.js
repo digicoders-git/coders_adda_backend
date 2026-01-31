@@ -22,6 +22,7 @@ import userRoute from './routes/user.routes.js';
 import adminUserRoutes from './routes/adminUser.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
 import paymentRoute from './routes/payment.routes.js';
+import quizRoute from './routes/quiz.routes.js';
 import http from "http";
 import { initSocket } from "./config/socket.js";
 dotenv.config()
@@ -60,6 +61,7 @@ app.use('/short-comments', shortCommentRoutes)
 app.use('/short-shares', shortShareRoute)
 app.use('/users', userRoute)
 app.use('/payment', paymentRoute)
+app.use('/quiz', quizRoute)
 
 
 // 404 handler

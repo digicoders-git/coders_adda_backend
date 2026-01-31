@@ -62,6 +62,16 @@ const jobSchema = new mongoose.Schema(
       trim: true
     },
 
+    companyMobile: {
+      type: String,
+      trim: true
+    },
+
+    companyWebsite: {
+      type: String,
+      trim: true
+    },
+
     contactEmail: {
       type: String,
       required: true,
@@ -74,9 +84,10 @@ const jobSchema = new mongoose.Schema(
       required: true
     },
 
-    isActive: {
-      type: Boolean,
-      default: true
+    jobStatus: {
+      type: String,
+      default: "Active", // Active, Disabled
+      enum: ["Active", "Disabled"]
     }
   },
   { timestamps: true }

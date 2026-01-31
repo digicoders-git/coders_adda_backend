@@ -17,6 +17,7 @@ export const createCategory = async (req, res) => {
     const category = await EbooksCategory.create({ name });
 
     res.status(201).json({
+      success: true,
       message: "Category created successfully",
       data: category
     });
@@ -42,6 +43,7 @@ export const updateCategory = async (req, res) => {
     await category.save();
 
     res.json({
+      success: true,
       message: "Category updated successfully",
       data: category
     });
@@ -62,7 +64,7 @@ export const deleteCategory = async (req, res) => {
 
     await category.deleteOne();
 
-    res.json({ message: "Category deleted successfully" });
+    res.json({ success: true, message: "Category deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -78,7 +80,7 @@ export const getSingleCategory = async (req, res) => {
       return res.status(404).json({ message: "Category not found" });
     }
 
-    res.json({ data: category });
+    res.json({ success: true, data: category });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -113,6 +115,7 @@ export const getAllCategories = async (req, res) => {
       .limit(limit);
 
     res.json({
+      success: true,
       total,
       page,
       limit,

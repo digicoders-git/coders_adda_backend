@@ -4,7 +4,7 @@ const ebookSchema = new mongoose.Schema({
 
   category: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "EbooksCategory",
+    ref: "courseCategory",
     required: true
   },
 
@@ -38,6 +38,12 @@ const ebookSchema = new mongoose.Schema({
 
   // ================= PDF =================
   pdf: {
+    url: String,
+    public_id: String
+  },
+
+  // ================= IMAGE =================
+  image: {
     url: String,
     public_id: String
   },

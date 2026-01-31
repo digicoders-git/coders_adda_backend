@@ -16,6 +16,8 @@ export const createJob = async (req, res) => {
       companyName,
       contactEmail,
       fullAddress,
+      companyMobile,
+      companyWebsite,
       jobStatus
     } = req.body;
 
@@ -59,10 +61,13 @@ export const createJob = async (req, res) => {
       companyName,
       contactEmail,
       fullAddress,
+      companyMobile,
+      companyWebsite,
       jobStatus
     });
 
     res.status(201).json({
+      success: true,
       message: "Job created successfully",
       data: job
     });
@@ -94,6 +99,8 @@ export const updateJob = async (req, res) => {
       companyName,
       contactEmail,
       fullAddress,
+      companyMobile,
+      companyWebsite,
       jobStatus
     } = req.body;
 
@@ -108,6 +115,8 @@ export const updateJob = async (req, res) => {
     if (companyName !== undefined) job.companyName = companyName;
     if (contactEmail !== undefined) job.contactEmail = contactEmail;
     if (fullAddress !== undefined) job.fullAddress = fullAddress;
+    if (companyMobile !== undefined) job.companyMobile = companyMobile;
+    if (companyWebsite !== undefined) job.companyWebsite = companyWebsite;
     if (jobStatus !== undefined) job.jobStatus = jobStatus;
 
     if (requiredSkills !== undefined) {
@@ -121,6 +130,7 @@ export const updateJob = async (req, res) => {
     await job.save();
 
     res.json({
+      success: true,
       message: "Job updated successfully",
       data: job
     });
@@ -141,7 +151,7 @@ export const deleteJob = async (req, res) => {
 
     await job.deleteOne();
 
-    res.json({ message: "Job deleted successfully" });
+    res.json({ success: true, message: "Job deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -157,7 +167,7 @@ export const getSingleJob = async (req, res) => {
       return res.status(404).json({ message: "Job not found" });
     }
 
-    res.json({ data: job });
+    res.json({ success: true, data: job });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -206,6 +216,7 @@ export const getAllJobs = async (req, res) => {
       .limit(limit);
 
     res.json({
+      success: true,
       total,
       page,
       limit,
@@ -228,11 +239,12 @@ export const toggleJobStatus = async (req, res) => {
     }
 
     // toggle status
-    job.jobStatus = job.jobStatus === "active" ? "disable" : "active";
+    job.jobStatus = job.jobStatus === "Active" ? "Disabled" : "Active";
 
     await job.save();
 
     res.json({
+      success: true,
       message: `Job status updated to ${job.jobStatus}`,
       data: {
         _id: job._id,

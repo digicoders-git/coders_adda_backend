@@ -33,6 +33,7 @@ export const createShort = async (req, res) => {
     });
 
     res.status(201).json({
+      success: true,
       message: "Short created successfully",
       data: short
     });
@@ -83,6 +84,7 @@ export const updateShort = async (req, res) => {
     await short.save();
 
     res.json({
+      success: true,
       message: "Short updated successfully",
       data: short
     });
@@ -113,7 +115,7 @@ export const deleteShort = async (req, res) => {
 
     await short.deleteOne();
 
-    res.json({ message: "Short deleted successfully" });
+    res.json({ success: true, message: "Short deleted successfully" });
   } catch (error) {
     res.status(500).json({
       message: "Server error",
@@ -154,6 +156,7 @@ export const getAllShorts = async (req, res) => {
       .limit(limit);
 
     res.json({
+      success: true,
       total,
       page,
       limit,
@@ -173,7 +176,7 @@ export const getAllShorts = async (req, res) => {
 export const getActiveShorts = async (req, res) => {
   try {
     const shorts = await Short.find({ isActive: true }).sort({ createdAt: -1 });
-    res.json({ data: shorts });
+    res.json({ success: true, data: shorts });
   } catch (error) {
     res.status(500).json({
       message: "Server error",
@@ -196,6 +199,7 @@ export const toggleShortStatus = async (req, res) => {
     await short.save();
 
     res.json({
+      success: true,
       message: "Short status updated",
       data: {
         _id: short._id,

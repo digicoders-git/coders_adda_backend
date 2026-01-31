@@ -42,13 +42,14 @@ export const createSubscription = async (req, res) => {
       planBenefits: Array.isArray(planBenefits)
         ? planBenefits
         : planBenefits
-        ? planBenefits.split(",").map((b) => b.trim())
-        : [],
+          ? planBenefits.split(",").map((b) => b.trim())
+          : [],
       includedCourses: includedCourses || [],
       includedEbooks: includedEbooks || []
     });
 
     res.status(201).json({
+      success: true,
       message: "Subscription plan created successfully",
       data: plan
     });
@@ -137,6 +138,7 @@ export const updateSubscription = async (req, res) => {
     await plan.save();
 
     res.json({
+      success: true,
       message: "Subscription plan updated successfully",
       data: plan
     });
@@ -161,7 +163,7 @@ export const deleteSubscription = async (req, res) => {
 
     await plan.deleteOne();
 
-    res.json({ message: "Subscription plan deleted successfully" });
+    res.json({ success: true, message: "Subscription plan deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -180,7 +182,7 @@ export const getSingleSubscription = async (req, res) => {
       return res.status(404).json({ message: "Subscription plan not found" });
     }
 
-    res.json({ data: plan });
+    res.json({ success: true, data: plan });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -215,6 +217,7 @@ export const getAllSubscriptions = async (req, res) => {
       .limit(limit);
 
     res.json({
+      success: true,
       total,
       page,
       limit,
@@ -240,6 +243,7 @@ export const toggleSubscriptionStatus = async (req, res) => {
     await plan.save();
 
     res.json({
+      success: true,
       message: "Plan status updated",
       data: {
         _id: plan._id,

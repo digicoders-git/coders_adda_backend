@@ -10,10 +10,10 @@ import {
 
 const ebookRoute = express.Router();
 
-ebookRoute.post("/create", upload.single("pdf"), createEbook);
+ebookRoute.post("/create", upload.fields([{ name: "image", maxCount: 1 }, { name: "pdf", maxCount: 1 }]), createEbook);
 ebookRoute.get("/get", getAllEbooks);
 ebookRoute.get("/get/:id", getSingleEbook);
-ebookRoute.put("/update/:id", upload.single("pdf"), updateEbook);
+ebookRoute.put("/update/:id", upload.fields([{ name: "image", maxCount: 1 }, { name: "pdf", maxCount: 1 }]), updateEbook);
 ebookRoute.delete("/delete/:id", deleteEbook);
 
 export default ebookRoute;

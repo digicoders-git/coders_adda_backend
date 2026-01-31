@@ -1,6 +1,9 @@
 import Course from "../models/course.model.js";
+import mongoose from "mongoose";
 import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
+import CourseCurriculum from "../models/courseCurriculum.model.js";
+import Lecture from "../models/lecture.model.js";
 
 /* ================= CREATE COURSE ================= */
 export const createCourse = async (req, res) => {
@@ -99,11 +102,22 @@ export const getAllCourses = async (req, res) => {
 
     let filter = {};
 
-    // 🔍 Search by title & technology
+    // 🔍 Global Search across Course, Instructor, and Category
     if (search) {
+      const searchRegex = { $regex: search, $options: "i" };
+
+      // Find matching instructors & categories first to include them in search
+      const [matchingInstructors, matchingCategories] = await Promise.all([
+        mongoose.model("Instructor").find({ fullName: searchRegex }).select("_id"),
+        mongoose.model("courseCategory").find({ name: searchRegex }).select("_id")
+      ]);
+
       filter.$or = [
-        { title: { $regex: search, $options: "i" } },
-        { technology: { $regex: search, $options: "i" } }
+        { title: searchRegex },
+        { technology: searchRegex },
+        { description: searchRegex },
+        { instructor: { $in: matchingInstructors.map(ins => ins._id) } },
+        { category: { $in: matchingCategories.map(cat => cat._id) } }
       ];
     }
 
@@ -159,10 +173,44 @@ export const getSingleCourse = async (req, res) => {
       return res.status(404).json({ message: "Course not found" });
     }
 
+    // Fetch Curriculum Topics
+    const topics = await CourseCurriculum.find({ course: id }).sort({ createdAt: 1 });
+
+    // Fetch All Lectures for this course
+    const lectures = await Lecture.find({ course: id }).sort({ srNo: 1 });
+
+    // Build Structured Curriculum
+    const structuredCurriculum = topics.map(topic => {
+      // Find lectures belonging to this topic
+      const topicLectures = lectures.filter(l => l.topic && l.topic.toString() === topic._id.toString());
+
+      return {
+        _id: topic._id,
+        title: topic.topic, // Frontend expects .title, backend has .topic
+        isActive: topic.isActive,
+        lessons: topicLectures.map(l => ({
+          _id: l._id,
+          title: l.title,
+          duration: l.duration,
+          lectureSrNo: l.srNo, // Frontend expects .lectureSrNo
+          isLocked: l.privacy === "locked", // Map privacy to isLocked
+          pdfUrl: l.resource?.url || "", // Map resource to pdfUrl
+          videoUrl: l.video?.url || "",
+          thumbnailUrl: l.thumbnail?.url || "",
+          status: l.isActive ? "Active" : "Disabled",
+          description: l.description
+        }))
+      };
+    });
+
     return res.status(200).json({
       success: true,
-      data: course
+      data: {
+        ...course.toObject(),
+        curriculum: structuredCurriculum
+      }
     });
+
   } catch (error) {
     return res.status(500).json({
       message: "Internal Server Error",
@@ -182,19 +230,19 @@ export const updateCourse = async (req, res) => {
     }
 
     const {
-  title,
-  instructor,
-  category,
-  technology,
-  description,
-  priceForInstructor,
-  whatYouWillLearn,
-  faqs,
-  isActive,
-  priceType,
-  price,
-  badge
-} = req.body;
+      title,
+      instructor,
+      category,
+      technology,
+      description,
+      priceForInstructor,
+      whatYouWillLearn,
+      faqs,
+      isActive,
+      priceType,
+      price,
+      badge
+    } = req.body;
 
 
     if (title !== undefined) course.title = title;
@@ -205,8 +253,8 @@ export const updateCourse = async (req, res) => {
     if (priceForInstructor !== undefined) course.priceForInstructor = priceForInstructor;
     if (isActive !== undefined) course.isActive = isActive;
     if (priceType !== undefined) course.priceType = priceType;
-if (price !== undefined) course.price = price;
-if (badge !== undefined) course.badge = badge;
+    if (price !== undefined) course.price = price;
+    if (badge !== undefined) course.badge = badge;
 
 
     if (whatYouWillLearn) course.whatYouWillLearn = JSON.parse(whatYouWillLearn);

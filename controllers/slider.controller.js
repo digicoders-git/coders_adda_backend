@@ -20,6 +20,7 @@ export const createSlider = async (req, res) => {
     });
 
     res.status(201).json({
+      success: true,
       message: "Slider created successfully",
       data: slider
     });
@@ -57,6 +58,7 @@ export const updateSlider = async (req, res) => {
     await slider.save();
 
     res.json({
+      success: true,
       message: "Slider updated successfully",
       data: slider
     });
@@ -82,7 +84,7 @@ export const deleteSlider = async (req, res) => {
 
     await slider.deleteOne();
 
-    res.json({ message: "Slider deleted successfully" });
+    res.json({ success: true, message: "Slider deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -134,6 +136,7 @@ export const toggleSliderStatus = async (req, res) => {
     await slider.save();
 
     res.json({
+      success: true,
       message: "Slider status updated successfully",
       data: {
         _id: slider._id,
