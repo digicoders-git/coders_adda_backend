@@ -5,27 +5,84 @@ import fs from "fs";
 /* ================= GET ALL USERS (SEARCH + FILTER + PAGINATION) ================= */
 export const getAllUsers = async (req, res) => {
   try {
-    const { search, isActive, page = 1, limit = 10 } = req.query;
+    const {
+      search,
+      isActive,
+      college,
+      course,
+      semester,
+      page = 1,
+      limit = 10,
+      sort = "newest"
+    } = req.query;
 
     let filter = {};
 
+    // Global Searching
     if (search) {
       filter.$or = [
         { name: { $regex: search, $options: "i" } },
         { mobile: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
+        { college: { $regex: search, $options: "i" } },
+        { course: { $regex: search, $options: "i" } },
+        { about: { $regex: search, $options: "i" } },
       ];
     }
 
+    // Proper Filtering
     if (isActive !== undefined) {
       filter.isActive = isActive === "true";
     }
 
+    if (college) {
+      filter.college = { $regex: college, $options: "i" };
+    }
+
+    if (course) {
+      filter.course = { $regex: course, $options: "i" };
+    }
+
+    if (semester) {
+      filter.semester = { $regex: semester, $options: "i" };
+    }
+
     const skip = (page - 1) * limit;
 
+    // Sorting
+    let sortOptions = { createdAt: -1 };
+    if (sort === "oldest") {
+      sortOptions = { createdAt: 1 };
+    } else if (sort === "name_asc") {
+      sortOptions = { name: 1 };
+    } else if (sort === "name_desc") {
+      sortOptions = { name: -1 };
+    }
+
     const total = await User.countDocuments(filter);
+
+    // Population of all data
     const data = await User.find(filter)
-      .sort({ createdAt: -1 })
+      .populate({
+        path: 'purchaseCourses',
+        populate: [
+          { path: 'instructor' },
+          { path: 'category' }
+        ]
+      })
+      .populate({
+        path: 'purchaseEbooks',
+        populate: { path: 'category' }
+      })
+      .populate('purchaseJobs')
+      .populate({
+        path: 'purchaseSubscriptions',
+        populate: [
+          { path: 'includedCourses' },
+          { path: 'includedEbooks' }
+        ]
+      })
+      .sort(sortOptions)
       .skip(skip)
       .limit(Number(limit));
 
@@ -50,7 +107,26 @@ export const getAllUsers = async (req, res) => {
 export const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
-    const user = await User.findById(id);
+    const user = await User.findById(id)
+      .populate({
+        path: 'purchaseCourses',
+        populate: [
+          { path: 'instructor' },
+          { path: 'category' }
+        ]
+      })
+      .populate({
+        path: 'purchaseEbooks',
+        populate: { path: 'category' }
+      })
+      .populate('purchaseJobs')
+      .populate({
+        path: 'purchaseSubscriptions',
+        populate: [
+          { path: 'includedCourses' },
+          { path: 'includedEbooks' }
+        ]
+      });
 
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
@@ -73,9 +149,14 @@ export const updateUser = async (req, res) => {
       college,
       course,
       semester,
-      branch,
+      technology,
+      skills,
       about,
-      isActive
+      isActive,
+      purchaseSubscriptions,
+      purchaseCourses,
+      purchaseEbooks,
+      purchaseJobs
     } = req.body;
 
     const user = await User.findById(id);
@@ -89,9 +170,15 @@ export const updateUser = async (req, res) => {
     if (college !== undefined) user.college = college;
     if (course !== undefined) user.course = course;
     if (semester !== undefined) user.semester = semester;
-    if (branch !== undefined) user.branch = branch;
+    if (technology !== undefined) user.technology = Array.isArray(technology) ? technology : technology.split(',').map(s => s.trim());
+    if (skills !== undefined) user.skills = Array.isArray(skills) ? skills : skills.split(',').map(s => s.trim());
     if (about !== undefined) user.about = about;
     if (isActive !== undefined) user.isActive = isActive === "true" || isActive === true;
+
+    if (purchaseSubscriptions !== undefined) user.purchaseSubscriptions = purchaseSubscriptions;
+    if (purchaseCourses !== undefined) user.purchaseCourses = purchaseCourses;
+    if (purchaseEbooks !== undefined) user.purchaseEbooks = purchaseEbooks;
+    if (purchaseJobs !== undefined) user.purchaseJobs = purchaseJobs;
 
     if (req.file) {
       if (user.profilePicture?.public_id) {

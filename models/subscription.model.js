@@ -14,16 +14,16 @@ const subscriptionSchema = new mongoose.Schema(
     },
 
     planPricingType: {
-  type: String,
-  enum: ["free", "paid"],
-  required: true,
-  default: "free"
-},
+      type: String,
+      enum: ["free", "paid"],
+      required: true,
+      default: "free"
+    },
 
-price: {
-  type: Number,
-  default: 0
-},
+    price: {
+      type: Number,
+      default: 0
+    },
 
 
     freeJobs: {
