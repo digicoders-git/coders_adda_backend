@@ -1,6 +1,24 @@
 import User from "../models/user.model.js";
 import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
+import Subscription from "../models/subscription.model.js";
+import SubscriptionPurchase from "../models/subscriptionPurchase.model.js";
+import Lecture from "../models/lecture.model.js";
+import UserProgress from "../models/UserProgress.js";
+
+// Helper: Parse duration string ("10 min", "1:20:30", "05:20") into seconds
+const parseDuration = (hms) => {
+  if (!hms) return 0;
+  if (typeof hms !== "string") return 0;
+  const time = hms.toLowerCase();
+  if (time.includes("min")) return (parseInt(time) || 0) * 60;
+  const a = time.split(':');
+  let seconds = 0;
+  if (a.length === 3) seconds = (+a[0]) * 60 * 60 + (+a[1]) * 60 + (+a[2]);
+  else if (a.length === 2) seconds = (+a[0]) * 60 + (+a[1]);
+  else seconds = parseInt(time) || 0;
+  return seconds;
+};
 
 /* ================= GET ALL USERS (SEARCH + FILTER + PAGINATION) ================= */
 export const getAllUsers = async (req, res) => {
@@ -76,7 +94,7 @@ export const getAllUsers = async (req, res) => {
       })
       .populate('purchaseJobs')
       .populate({
-        path: 'purchaseSubscriptions',
+        path: 'purchaseSubscriptions.subscription',
         populate: [
           { path: 'includedCourses' },
           { path: 'includedEbooks' }
@@ -121,16 +139,34 @@ export const getUserById = async (req, res) => {
       })
       .populate('purchaseJobs')
       .populate({
-        path: 'purchaseSubscriptions',
+        path: 'purchaseSubscriptions.subscription',
         populate: [
           { path: 'includedCourses' },
           { path: 'includedEbooks' }
         ]
-      });
+      }).lean();
 
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
+
+    // Attach progress to each course (Watched Time Based)
+    const coursesWithProgress = await Promise.all((user.purchaseCourses || []).map(async (course) => {
+      const lectures = await Lecture.find({ course: course._id }).select("duration").lean();
+      const totalDuration = lectures.reduce((acc, l) => acc + parseDuration(l.duration), 0);
+
+      const userProgressDocs = await UserProgress.find({
+        user: user._id,
+        course: course._id
+      }).select("watchedSeconds").lean();
+
+      const watched = userProgressDocs.reduce((acc, doc) => acc + (doc.watchedSeconds || 0), 0);
+      const progress = totalDuration > 0 ? Math.round(Math.min(100, (watched / totalDuration) * 100)) : 0;
+
+      return { ...course, progressPercentage: progress };
+    }));
+
+    user.purchaseCourses = coursesWithProgress;
 
     return res.status(200).json({ success: true, data: user });
   } catch (error) {
@@ -175,7 +211,48 @@ export const updateUser = async (req, res) => {
     if (about !== undefined) user.about = about;
     if (isActive !== undefined) user.isActive = isActive === "true" || isActive === true;
 
-    if (purchaseSubscriptions !== undefined) user.purchaseSubscriptions = purchaseSubscriptions;
+    if (purchaseSubscriptions !== undefined && Array.isArray(purchaseSubscriptions)) {
+      const processedSubs = [];
+      for (const item of purchaseSubscriptions) {
+        // If existing valid object with dates
+        if (typeof item === 'object' && item.subscription && item.endDate) {
+          processedSubs.push(item);
+        }
+        // If string ID or simple object (New Subscription)
+        else {
+          const subId = typeof item === 'string' ? item : (item.subscription || item._id);
+          if (subId) {
+            const subPlan = await Subscription.findById(subId);
+            if (subPlan) {
+              const durationInMonths = parseInt(subPlan.duration) || 1;
+              const startDate = new Date();
+              const endDate = new Date(startDate);
+              endDate.setMonth(endDate.getMonth() + durationInMonths);
+
+              processedSubs.push({
+                subscription: subId,
+                startDate,
+                endDate
+              });
+
+              // 🔥 Also create a record in SubscriptionPurchase for the "Source of Truth"
+              await SubscriptionPurchase.create({
+                user: id,
+                subscription: subId,
+                planType: subPlan.planType,
+                duration: subPlan.duration,
+                pricePaid: subPlan.price,
+                pricingType: subPlan.planPricingType,
+                startDate,
+                endDate,
+                status: "active"
+              });
+            }
+          }
+        }
+      }
+      user.purchaseSubscriptions = processedSubs;
+    }
     if (purchaseCourses !== undefined) user.purchaseCourses = purchaseCourses;
     if (purchaseEbooks !== undefined) user.purchaseEbooks = purchaseEbooks;
     if (purchaseJobs !== undefined) user.purchaseJobs = purchaseJobs;

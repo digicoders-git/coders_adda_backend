@@ -56,7 +56,11 @@ const subscriptionSchema = new mongoose.Schema(
         type: mongoose.Schema.Types.ObjectId,
         ref: "Ebook"
       }
-    ]
+    ],
+    isDeleted: {
+      type: Boolean,
+      default: false
+    }
   },
   { timestamps: true }
 );

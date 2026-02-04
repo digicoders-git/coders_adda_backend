@@ -94,7 +94,23 @@ const userSchema = new mongoose.Schema({
   ],
   purchaseEbooks: [{ type: mongoose.Schema.Types.ObjectId, ref: "Ebook" }],
   purchaseJobs: [{ type: mongoose.Schema.Types.ObjectId, ref: "Job" }],
-  purchaseSubscriptions: [{ type: mongoose.Schema.Types.ObjectId, ref: "Subscription" }],
+  purchaseSubscriptions: [
+    {
+      subscription: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Subscription",
+        required: true
+      },
+      startDate: {
+        type: Date,
+        default: Date.now
+      },
+      endDate: {
+        type: Date,
+        required: true
+      }
+    }
+  ],
 
 
   // Active

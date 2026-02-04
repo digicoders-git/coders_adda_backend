@@ -1,4 +1,6 @@
 import Subscription from "../models/subscription.model.js";
+import User from "../models/user.model.js";
+import SubscriptionPurchase from "../models/subscriptionPurchase.model.js";
 
 /* ================= CREATE PLAN ================= */
 export const createSubscription = async (req, res) => {
@@ -151,7 +153,7 @@ export const updateSubscription = async (req, res) => {
 };
 
 
-/* ================= DELETE PLAN ================= */
+/* ================= DELETE PLAN (PROTECTED + SOFT DELETE) ================= */
 export const deleteSubscription = async (req, res) => {
   try {
     const { id } = req.params;
@@ -161,7 +163,23 @@ export const deleteSubscription = async (req, res) => {
       return res.status(404).json({ message: "Subscription plan not found" });
     }
 
-    await plan.deleteOne();
+    // 1. Check for active enrollments
+    const activeUsage = await SubscriptionPurchase.countDocuments({
+      subscription: id,
+      status: "active"
+    });
+
+    if (activeUsage > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "This plan cannot be deleted because it is currently used by students."
+      });
+    }
+
+    // 2. Soft delete
+    plan.isDeleted = true;
+    plan.planStatus = false;
+    await plan.save();
 
     res.json({ success: true, message: "Subscription plan deleted successfully" });
   } catch (error) {
@@ -207,14 +225,58 @@ export const getAllSubscriptions = async (req, res) => {
       filter.planStatus = status === "true";
     }
 
-    const total = await Subscription.countDocuments(filter);
+    const total = await Subscription.countDocuments({ ...filter, isDeleted: { $ne: true } });
 
-    const plans = await Subscription.find(filter)
+    // 🚀 SYNC MIGRATION logic (Ensuring Source of Truth)
+    // This runs to ensure all existing User.purchaseSubscriptions are mirrored in SubscriptionPurchase
+    const usersWithSubs = await User.find({ "purchaseSubscriptions.0": { $exists: true } });
+    for (const user of usersWithSubs) {
+      for (const subItem of user.purchaseSubscriptions) {
+        // Check if this specific enrollment already exists in SubscriptionPurchase
+        const exists = await SubscriptionPurchase.findOne({
+          user: user._id,
+          subscription: subItem.subscription,
+          startDate: subItem.startDate,
+          endDate: subItem.endDate
+        });
+
+        if (!exists) {
+          const plan = await Subscription.findById(subItem.subscription);
+          if (plan) {
+            await SubscriptionPurchase.create({
+              user: user._id,
+              subscription: plan._id,
+              planType: plan.planType,
+              duration: plan.duration,
+              pricePaid: plan.price,
+              pricingType: plan.planPricingType,
+              startDate: subItem.startDate || user.createdAt,
+              endDate: subItem.endDate,
+              status: new Date(subItem.endDate) > new Date() ? "active" : "expired"
+            });
+          }
+        }
+      }
+    }
+
+    const plans = await Subscription.find({ ...filter, isDeleted: { $ne: true } })
       .populate("includedCourses")
       .populate("includedEbooks")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
+
+    // Calculate isInUse and totalStudents for each plan
+    const plansWithUsage = await Promise.all(plans.map(async (plan) => {
+      const usageCount = await SubscriptionPurchase.countDocuments({
+        subscription: plan._id,
+        status: "active"
+      });
+      const planObj = plan.toObject();
+      planObj.totalStudents = usageCount;
+      planObj.isInUse = usageCount > 0;
+      return planObj;
+    }));
 
     res.json({
       success: true,
@@ -222,14 +284,14 @@ export const getAllSubscriptions = async (req, res) => {
       page,
       limit,
       totalPages: Math.ceil(total / limit),
-      data: plans
+      data: plansWithUsage
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
-/* ================= TOGGLE PLAN STATUS ================= */
+/* ================= TOGGLE PLAN STATUS (PROTECTED) ================= */
 export const toggleSubscriptionStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -237,6 +299,21 @@ export const toggleSubscriptionStatus = async (req, res) => {
     const plan = await Subscription.findById(id);
     if (!plan) {
       return res.status(404).json({ message: "Subscription plan not found" });
+    }
+
+    // If attempting to deactivate, check for active usage
+    if (plan.planStatus === true) {
+      const activeUsage = await SubscriptionPurchase.countDocuments({
+        subscription: id,
+        status: "active"
+      });
+
+      if (activeUsage > 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Cannot deactivate plan. Students are currently using it."
+        });
+      }
     }
 
     plan.planStatus = !plan.planStatus;

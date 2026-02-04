@@ -1,4 +1,6 @@
 import User from "../models/user.model.js";
+import CourseCurriculum from "../models/courseCurriculum.model.js";
+import Lecture from "../models/lecture.model.js";
 import { generateToken } from "../utils/jwt.js";
 import cloudinary from "../config/cloudinary.js";
 
@@ -180,8 +182,8 @@ export const getProfile = async (req, res) => {
 
       // ================= SUBSCRIPTIONS =================
       .populate({
-        path: "purchaseSubscriptions",
-        select: "planType duration planPricingType price freeJobs planBenefits includedCourses includedEbooks",
+        path: "purchaseSubscriptions.subscription",
+        select: "planType duration planPricingType price freeJobs planStatus planBenefits includedCourses includedEbooks",
         populate: [
           {
             path: "includedCourses",
@@ -204,9 +206,45 @@ export const getProfile = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    // 🔥 COURSE → TOPIC → LECTURE BUILD
+    const coursesWithContent = await Promise.all(
+      (user.purchaseCourses || []).map(async (course) => {
+        // 1️⃣ Topics (Chapters)
+        const topics = await CourseCurriculum.find({
+          course: course._id,
+          isActive: true
+        }).sort({ createdAt: 1 });
+
+        // 2️⃣ Lectures per topic
+        const topicsWithLectures = await Promise.all(
+          topics.map(async (topic) => {
+            const lectures = await Lecture.find({
+              course: course._id,
+              topic: topic._id,
+              isActive: true
+            }).sort({ srNo: 1 });
+
+            return {
+              ...topic.toObject(),
+              lectures
+            };
+          })
+        );
+
+        return {
+          ...course.toObject(),
+          curriculum: topicsWithLectures
+        };
+      })
+    );
+
+    // Replace flat purchaseCourses with nested hierarchy
+    const userObj = user.toObject();
+    userObj.purchaseCourses = coursesWithContent;
+
     return res.json({
       success: true,
-      user
+      user: userObj
     });
   } catch (error) {
     console.error("Get profile error:", error);

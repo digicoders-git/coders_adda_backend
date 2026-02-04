@@ -23,9 +23,11 @@ import adminUserRoutes from './routes/adminUser.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
 import paymentRoute from './routes/payment.routes.js';
 import quizRoute from './routes/quiz.routes.js';
+import adminCourseEnrollmentRoutes from './routes/adminCourseEnrollment.routes.js';
 import http from "http";
 import { initSocket } from "./config/socket.js";
 dotenv.config()
+import "./cron/subscriptionExpiry.cron.js";
 
 const app = express()
 const port = process.env.PORT || 3000
@@ -62,6 +64,7 @@ app.use('/short-shares', shortShareRoute)
 app.use('/users', userRoute)
 app.use('/payment', paymentRoute)
 app.use('/quiz', quizRoute)
+app.use('/admin/course-enrollments', adminCourseEnrollmentRoutes)
 
 
 // 404 handler

@@ -31,8 +31,27 @@ export const purchasableItemsMap = {
     priceField: "price",
     priceTypeField: "priceType",
     unlock: async (user, itemId) => {
-      if (!user.purchaseSubscriptions.includes(itemId)) {  // ✅ ARRAY BASED
-        user.purchaseSubscriptions.push(itemId);
+      // Check for existing subscription (handling object structure)
+      const alreadySubscribed = user.purchaseSubscriptions.some(
+        (sub) => sub.subscription.toString() === itemId.toString()
+      );
+
+      if (!alreadySubscribed) {
+        const subscription = await Subscription.findById(itemId);
+        if (subscription) {
+          // Parse duration (ensure it handles strings like "3 Months")
+          const durationInMonths = parseInt(subscription.duration) || 1;
+
+          const startDate = new Date();
+          const endDate = new Date(startDate);
+          endDate.setMonth(endDate.getMonth() + durationInMonths);
+
+          user.purchaseSubscriptions.push({
+            subscription: itemId,
+            startDate,
+            endDate
+          });
+        }
       }
     }
   },
