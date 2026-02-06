@@ -6,10 +6,14 @@ import {
   getSingleCourse,
   updateCourse,
   deleteCourse,
-  toggleCourseStatus
+  toggleCourseStatus,
+  getInstructorCourses
 } from "../controllers/course.controller.js";
+import verifyInstructorToken from "../middleware/verifyInstructorToken.js";
 
 const courseRoute = express.Router();
+
+courseRoute.get("/instructor/my-courses", verifyInstructorToken, getInstructorCourses);
 
 // thumbnail + promoVideo upload
 courseRoute.post(

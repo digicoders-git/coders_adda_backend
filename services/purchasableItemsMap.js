@@ -2,6 +2,8 @@ import Course from "../models/course.model.js";
 import Ebook from "../models/ebook.model.js";
 import Subscription from "../models/subscription.model.js";
 import Job from "../models/job.model.js";
+import EbookEnrollment from "../models/ebookEnrollment.model.js";
+import JobEnrollment from "../models/jobEnrollment.model.js";
 
 export const purchasableItemsMap = {
   course: {
@@ -20,8 +22,20 @@ export const purchasableItemsMap = {
     priceField: "price",
     priceTypeField: "priceType",
     unlock: async (user, itemId) => {
-      if (!user.purchaseEbooks.includes(itemId)) {   // ✅ FIXED NAME
+      if (!user.purchaseEbooks.includes(itemId)) {
         user.purchaseEbooks.push(itemId);
+
+        const ebook = await Ebook.findById(itemId);
+        await EbookEnrollment.findOneAndUpdate(
+          { user: user._id, ebook: itemId },
+          {
+            user: user._id,
+            ebook: itemId,
+            pricePaid: ebook?.priceType === "free" ? 0 : (ebook?.price || 0),
+            enrolledAt: new Date()
+          },
+          { upsert: true, new: true }
+        );
       }
     }
   },
@@ -61,8 +75,20 @@ export const purchasableItemsMap = {
     priceField: "price",
     priceTypeField: "priceType",
     unlock: async (user, itemId) => {
-      if (!user.purchaseJobs.includes(itemId)) {  // ✅ FIXED
+      if (!user.purchaseJobs.includes(itemId)) {
         user.purchaseJobs.push(itemId);
+
+        const job = await Job.findById(itemId);
+        await JobEnrollment.findOneAndUpdate(
+          { user: user._id, job: itemId },
+          {
+            user: user._id,
+            job: itemId,
+            pricePaid: job?.priceType === "free" ? 0 : (job?.price || 0),
+            enrolledAt: new Date()
+          },
+          { upsert: true, new: true }
+        );
       }
     }
   }

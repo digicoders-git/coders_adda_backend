@@ -185,6 +185,8 @@ export const getCourseStudents = async (req, res) => {
     const lectures = await Lecture.find({ course: cid }).select("duration").lean();
     const totalDuration = lectures.reduce((acc, l) => acc + parseDuration(l.duration), 0);
 
+    const studentIds = students.map(s => s._id);
+
     // Aggregate progress
     const progressData = await UserProgress.aggregate([
       { $match: { course: cid, user: { $in: studentIds } } },

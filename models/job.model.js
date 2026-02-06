@@ -88,6 +88,15 @@ const jobSchema = new mongoose.Schema(
       type: String,
       default: "Active", // Active, Disabled
       enum: ["Active", "Disabled"]
+    },
+    price: {
+      type: Number,
+      default: 0
+    },
+    priceType: {
+      type: String,
+      enum: ["free", "paid"],
+      default: "free"
     }
   },
   { timestamps: true }

@@ -105,6 +105,7 @@ export const getSubscriptionStats = async (req, res) => {
     const totalEnrolled = await SubscriptionPurchase.countDocuments();
     const activeCount = await SubscriptionPurchase.countDocuments({ status: "active" });
     const expiredCount = await SubscriptionPurchase.countDocuments({ status: "expired" });
+    const cancelledCount = await SubscriptionPurchase.countDocuments({ status: "cancelled" });
 
     const revenueResult = await SubscriptionPurchase.aggregate([
       { $match: { pricingType: "paid" } },
@@ -123,6 +124,7 @@ export const getSubscriptionStats = async (req, res) => {
         totalEnrolled,
         activeCount,
         expiredCount,
+        cancelledCount,
         totalRevenue: revenueResult[0]?.total || 0,
         topPlan: popularPlanResult[0]?._id || "N/A"
       }

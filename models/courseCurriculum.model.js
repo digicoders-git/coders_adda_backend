@@ -21,4 +21,4 @@ const courseCurriculumSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 const CourseCurriculum = mongoose.model("CourseCurriculum", courseCurriculumSchema);
-export default CourseCurriculum;
+export default CourseCurriculum; 

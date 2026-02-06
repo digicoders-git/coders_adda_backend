@@ -1,4 +1,7 @@
 import Job from "../models/job.model.js";
+import JobEnrollment from "../models/jobEnrollment.model.js";
+import jwt from "jsonwebtoken";
+import Admin from "../models/admin.model.js";
 
 /* ================= CREATE JOB ================= */
 export const createJob = async (req, res) => {
@@ -18,7 +21,9 @@ export const createJob = async (req, res) => {
       fullAddress,
       companyMobile,
       companyWebsite,
-      jobStatus
+      jobStatus,
+      price,
+      priceType
     } = req.body;
 
     // Required fields check
@@ -63,7 +68,9 @@ export const createJob = async (req, res) => {
       fullAddress,
       companyMobile,
       companyWebsite,
-      jobStatus
+      jobStatus,
+      price: price || 0,
+      priceType: priceType || "free"
     });
 
     res.status(201).json({
@@ -101,7 +108,9 @@ export const updateJob = async (req, res) => {
       fullAddress,
       companyMobile,
       companyWebsite,
-      jobStatus
+      jobStatus,
+      price,
+      priceType
     } = req.body;
 
     if (jobTitle !== undefined) job.jobTitle = jobTitle;
@@ -118,6 +127,8 @@ export const updateJob = async (req, res) => {
     if (companyMobile !== undefined) job.companyMobile = companyMobile;
     if (companyWebsite !== undefined) job.companyWebsite = companyWebsite;
     if (jobStatus !== undefined) job.jobStatus = jobStatus;
+    if (price !== undefined) job.price = price;
+    if (priceType !== undefined) job.priceType = priceType;
 
     if (requiredSkills !== undefined) {
       if (Array.isArray(requiredSkills)) {
@@ -167,7 +178,54 @@ export const getSingleJob = async (req, res) => {
       return res.status(404).json({ message: "Job not found" });
     }
 
-    res.json({ success: true, data: job });
+    // Check if job is unlocked for this user
+    let isUnlocked = false;
+
+    // 1. Check for Admin token first
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.split(" ")[1];
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        // Check if it's an admin token by searching for the admin ID
+        // Admin tokens usually store the id in the payload (based on admin.controller.js generateToken)
+        const isAdmin = await Admin.exists({ _id: decoded.id });
+        if (isAdmin) isUnlocked = true;
+      } catch (err) {
+        // Not a valid admin token or expired, ignore
+      }
+    }
+
+    // 2. If not admin, check if regular user is enrolled
+    if (!isUnlocked && req.user) {
+      isUnlocked = await JobEnrollment.exists({ user: req.user._id, job: id });
+    }
+
+    // 3. If job is free, it's considered unlocked
+    if (job.priceType === "free") isUnlocked = true;
+
+    if (!isUnlocked) {
+      return res.json({
+        success: true,
+        data: {
+          _id: job._id,
+          jobTitle: job.jobTitle,
+          companyName: job.companyName,
+          jobCategory: job.jobCategory,
+          location: job.location,
+          salaryPackage: job.salaryPackage,
+          requiredExperience: job.requiredExperience,
+          workType: job.workType,
+          jobStatus: job.jobStatus,
+          price: job.price,
+          priceType: job.priceType,
+          numberOfOpenings: job.numberOfOpenings,
+          locked: true
+        }
+      });
+    }
+
+    res.json({ success: true, data: { ...job.toObject(), locked: false } });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -215,13 +273,54 @@ export const getAllJobs = async (req, res) => {
       .skip(skip)
       .limit(limit);
 
+    // Get auth status for locking logic
+    let isAdminRequest = false;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.split(" ")[1];
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        isAdminRequest = await Admin.exists({ _id: decoded.id });
+      } catch (err) { }
+    }
+
+    const jobsWithLockStatus = await Promise.all(
+      jobs.map(async (job) => {
+        let isUnlocked = isAdminRequest;
+
+        if (!isUnlocked && req.user) {
+          isUnlocked = await JobEnrollment.exists({ user: req.user._id, job: job._id });
+        }
+        if (job.priceType === "free") isUnlocked = true;
+
+        if (!isUnlocked) {
+          return {
+            _id: job._id,
+            jobTitle: job.jobTitle,
+            companyName: job.companyName,
+            jobCategory: job.jobCategory,
+            location: job.location,
+            salaryPackage: job.salaryPackage,
+            requiredExperience: job.requiredExperience,
+            workType: job.workType,
+            jobStatus: job.jobStatus,
+            price: job.price,
+            priceType: job.priceType,
+            numberOfOpenings: job.numberOfOpenings,
+            locked: true
+          };
+        }
+        return { ...job.toObject(), locked: false };
+      })
+    );
+
     res.json({
       success: true,
       total,
       page,
       limit,
       totalPages: Math.ceil(total / limit),
-      data: jobs
+      data: jobsWithLockStatus
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });

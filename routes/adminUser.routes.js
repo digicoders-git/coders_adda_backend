@@ -4,7 +4,8 @@ import {
   getUserById,
   updateUser,
   deleteUser,
-  toggleUserStatus
+  toggleUserStatus,
+  getUserTransactions
 } from "../controllers/adminUser.controller.js";
 import upload from "../middleware/multer.js";
 
@@ -12,6 +13,7 @@ const adminUserRoutes = express.Router();
 
 adminUserRoutes.get("/get", getAllUsers);
 adminUserRoutes.get("/get/:id", getUserById);
+adminUserRoutes.get("/transactions/:id", getUserTransactions);
 adminUserRoutes.put("/update/:id", upload.single("profilePicture"), updateUser);
 adminUserRoutes.delete("/delete/:id", deleteUser);
 adminUserRoutes.patch("/toggle-status/:id", toggleUserStatus);

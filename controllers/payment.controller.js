@@ -147,3 +147,85 @@ export const verifyPayment = async (req, res) => {
     return res.status(500).json({ message: "Payment verification failed" });
   }
 };
+
+/* ===============================
+   3️⃣ RECORD PAYMENT FAILURE
+================================ */
+export const recordPaymentFailure = async (req, res) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, error_description, error_reason } = req.body;
+
+    const payment = await Payment.findOne({ "razorpay.order.id": razorpay_order_id });
+
+    if (!payment) {
+      return res.status(404).json({ message: "Payment record not found" });
+    }
+
+    payment.status = "failed";
+    payment.razorpay.status = "failed";
+    payment.razorpay.payment = { id: razorpay_payment_id, error: req.body };
+    payment.failureReason = error_description || error_reason || "Payment Cancelled / Failed";
+
+    await payment.save();
+
+    return res.json({ success: true, message: "Failure recorded" });
+  } catch (err) {
+    console.error("Record failure error:", err);
+    return res.status(500).json({ message: "Failed to record payment failure" });
+  }
+};
+
+/* ===============================
+   4️⃣ WALLET PAYMENT
+================================ */
+export const payWithWallet = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { itemType, itemId } = req.body;
+
+    const config = purchasableItemsMap[itemType];
+    if (!config) return res.status(400).json({ success: false, message: "Invalid item type" });
+
+    const item = await config.model.findById(itemId);
+    if (!item) return res.status(404).json({ success: false, message: "Item not found" });
+
+    const amount = item[config.priceField];
+
+    const user = await User.findById(userId);
+
+    // 🔥 Check Balance
+    if (user.walletBalance < amount) {
+      return res.status(400).json({
+        success: false,
+        message: "Insufficient wallet balance. Please refer more friends or earn rewards."
+      });
+    }
+
+    // 🔥 Deduct Balance
+    user.walletBalance -= amount;
+
+    // 🔥 Unlock Item
+    await config.unlock(user, itemId);
+    await user.save();
+
+    // 🔥 Create Payment Record
+    await Payment.create({
+      user: userId,
+      itemType,
+      itemId,
+      amount,
+      paymentMethod: "wallet",
+      status: "success"
+    });
+
+    return res.json({
+      success: true,
+      message: `${itemType.charAt(0).toUpperCase() + itemType.slice(1)} purchased successfully using wallet balance.`,
+      newBalance: user.walletBalance
+    });
+
+  } catch (error) {
+    console.error("Wallet payment error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};

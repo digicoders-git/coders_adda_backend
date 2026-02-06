@@ -1,5 +1,5 @@
 import express from 'express'
-import { getAllUsers, getProfile, googleLogin, mobileLogin, updateUserIsActive, updateUserProfile } from '../controllers/user.controller.js';
+import { getAllUsers, getMyWallet, getProfile, googleLogin, mobileLogin, updateUserIsActive, updateUserProfile } from '../controllers/user.controller.js';
 import userAuth from '../middleware/userAuth.js';
 import upload from "../middleware/multer.js";
 import { getMyLibrary } from '../controllers/library.controller.js';
@@ -21,6 +21,7 @@ userRoute.put("/update-profile", userAuth, upload.single("profilePicture"), upda
 userRoute.get("/profile", userAuth, getProfile);
 userRoute.get("/:id/status", updateUserIsActive);
 userRoute.get("/my-library", userAuth, getMyLibrary);
+userRoute.get("/my-wallet", userAuth, getMyWallet);
 // userRoute.post("/course-purchase",userAuth, purchaseCourse);
 
 export default userRoute;

@@ -1,4 +1,6 @@
 import Instructor from "../models/instructor.model.js";
+import bcrypt from "bcryptjs";
+import generateToken from "../config/token.js";
 
 /* ================= CREATE ================= */
 export const createInstructor = async (req, res) => {
@@ -14,10 +16,11 @@ export const createInstructor = async (req, res) => {
       return res.status(400).json({ message: "Instructor already exists" });
     }
 
+    const hashedPassword = await bcrypt.hash(password, 10);
     const instructor = await Instructor.create({
       fullName,
       email,
-      password, // plain text
+      password: hashedPassword,
       role
     });
 
@@ -93,7 +96,7 @@ export const getSingleInstructor = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      instructor
+      instructorc
     });
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error", error: error.message });
@@ -113,7 +116,10 @@ export const updateInstructor = async (req, res) => {
 
     if (fullName !== undefined) instructor.fullName = fullName;
     if (email !== undefined) instructor.email = email;
-    if (password !== undefined) instructor.password = password;
+    if (password !== undefined) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      instructor.password = hashedPassword;
+    }
     if (role !== undefined) instructor.role = role;
     if (isActive !== undefined) instructor.isActive = isActive;
 
@@ -145,6 +151,49 @@ export const deleteInstructor = async (req, res) => {
       message: "Instructor deleted successfully",
       deleted
     });
+  } catch (error) {
+    return res.status(500).json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
+/* ================= LOGIN ================= */
+export const loginInstructor = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
+
+    const instructor = await Instructor.findOne({ email });
+    if (!instructor) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    if (!instructor.isActive) {
+      return res.status(403).json({ message: "Account is deactivated. Please contact admin." });
+    }
+
+    const isMatch = await bcrypt.compare(password, instructor.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    const token = generateToken(instructor._id);
+
+    return res.status(200).json({
+      success: true,
+      message: "Login successful",
+      token,
+      instructor: {
+        id: instructor._id,
+        fullName: instructor.fullName,
+        email: instructor.email,
+        role: instructor.role,
+        instructorId: instructor.instructorId
+      }
+    });
+
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error", error: error.message });
   }

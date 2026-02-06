@@ -24,6 +24,10 @@ import dashboardRoutes from './routes/dashboard.routes.js';
 import paymentRoute from './routes/payment.routes.js';
 import quizRoute from './routes/quiz.routes.js';
 import adminCourseEnrollmentRoutes from './routes/adminCourseEnrollment.routes.js';
+import adminEbookEnrollmentRoutes from './routes/adminEbookEnrollment.routes.js';
+import adminJobEnrollmentRoutes from './routes/adminJobEnrollment.routes.js';
+import adminSalesRoutes from './routes/adminSales.routes.js';
+import ambassadorRoutes from './routes/ambassador.routes.js';
 import http from "http";
 import { initSocket } from "./config/socket.js";
 dotenv.config()
@@ -65,6 +69,10 @@ app.use('/users', userRoute)
 app.use('/payment', paymentRoute)
 app.use('/quiz', quizRoute)
 app.use('/admin/course-enrollments', adminCourseEnrollmentRoutes)
+app.use('/admin/ebook-enrollments', adminEbookEnrollmentRoutes)
+app.use('/admin/job-enrollments', adminJobEnrollmentRoutes)
+app.use('/admin/sales', adminSalesRoutes)
+app.use('/ambassador', ambassadorRoutes)
 
 
 // 404 handler

@@ -370,3 +370,25 @@ export const toggleCourseStatus = async (req, res) => {
     });
   }
 };
+
+/* ================= GET INSTRUCTOR COURSES ================= */
+export const getInstructorCourses = async (req, res) => {
+  try {
+    const instructorId = req.instructor.id; // From middleware
+
+    const courses = await Course.find({ instructor: instructorId })
+      .populate("category", "name")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      message: "Instructor courses fetched successfully",
+      data: courses
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message
+    });
+  }
+};

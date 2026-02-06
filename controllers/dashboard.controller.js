@@ -75,12 +75,19 @@ export const getStats = async (req, res) => {
         startDate.setDate(startDate.getDate() - daysBack);
         startDate.setHours(0, 0, 0, 0);
 
+        const formatMap = {
+          day: "%Y-%m-%d",
+          week: "%Y-%U",
+          month: "%Y-%m"
+        };
+        const format = formatMap[interval] || "%Y-%m-%d";
+
         return await Payment.aggregate([
           { $match: { createdAt: { $gte: startDate }, status: "success" } },
           {
             $group: {
               _id: {
-                date: { $dateToString: { format: interval === 'day' ? "%Y-%m-%d" : "%Y-%U", date: "$createdAt" } },
+                date: { $dateToString: { format: format, date: "$createdAt" } },
                 type: "$itemType"
               },
               total: { $sum: 1 }, // Count of sales
@@ -118,11 +125,10 @@ export const getStats = async (req, res) => {
     // 4. Recent Comments
     let recentComments = [];
     try {
-      recentComments = await ShortComment.find()
+      recentComments = await ShortComment.find({ parentComment: null })
         .sort({ createdAt: -1 })
         .limit(5)
-        .populate('userId', 'name profilePicture'); // Updated to userId based on model schema
-      // If userId was used in schema
+        .populate('userId', 'name profilePicture profilePhoto');
     } catch (err) {
       console.error("Error fetching recent comments:", err.message);
     }

@@ -4,11 +4,13 @@ import {
   getAllInstructors,
   getSingleInstructor,
   updateInstructor,
-  deleteInstructor
+  deleteInstructor,
+  loginInstructor
 } from "../controllers/instructor.controller.js";
 
 const instructorRoute = express.Router();
 
+instructorRoute.post("/login", loginInstructor);
 instructorRoute.post("/create", createInstructor);
 instructorRoute.get("/get", getAllInstructors);
 instructorRoute.get("/get/:id", getSingleInstructor);

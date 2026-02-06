@@ -10,13 +10,19 @@ const paymentSchema = new mongoose.Schema(
 
     itemType: {
       type: String,
-      enum: ["course", "ebook", "job", "subscription"],
+      enum: ["course", "ebook", "job", "subscription", "referral_reward"],
       required: true
     },
 
     itemId: {
       type: mongoose.Schema.Types.ObjectId,
       required: true
+    },
+
+    paymentMethod: {
+      type: String,
+      enum: ["razorpay", "wallet", "system"],
+      default: "razorpay"
     },
 
     amount: { type: Number, required: true },

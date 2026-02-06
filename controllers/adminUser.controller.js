@@ -5,6 +5,8 @@ import Subscription from "../models/subscription.model.js";
 import SubscriptionPurchase from "../models/subscriptionPurchase.model.js";
 import Lecture from "../models/lecture.model.js";
 import UserProgress from "../models/UserProgress.js";
+import Payment from "../models/payment.model.js";
+import { purchasableItemsMap } from "../services/purchasableItemsMap.js";
 
 // Helper: Parse duration string ("10 min", "1:20:30", "05:20") into seconds
 const parseDuration = (hms) => {
@@ -100,6 +102,7 @@ export const getAllUsers = async (req, res) => {
           { path: 'includedEbooks' }
         ]
       })
+      .populate("referredBy", "name referralCode")
       .sort(sortOptions)
       .skip(skip)
       .limit(Number(limit));
@@ -144,7 +147,9 @@ export const getUserById = async (req, res) => {
           { path: 'includedCourses' },
           { path: 'includedEbooks' }
         ]
-      }).lean();
+      })
+      .populate("referredBy", "name referralCode")
+      .lean();
 
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
@@ -170,7 +175,35 @@ export const getUserById = async (req, res) => {
 
     return res.status(200).json({ success: true, data: user });
   } catch (error) {
-    return res.status(500).json({ success: false, message: "Internal Server Error", error: error.message });
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/* ================= GET USER TRANSACTIONS ================= */
+export const getUserTransactions = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const payments = await Payment.find({ user: id }).sort({ createdAt: -1 });
+
+    const transactions = await Promise.all(payments.map(async (payment) => {
+      const config = purchasableItemsMap[payment.itemType];
+      let itemName = "Unknown Item";
+      if (payment.itemType === "referral_reward") {
+        const referredUser = await User.findById(payment.itemId).select("name");
+        itemName = `Referral Reward: ${referredUser?.name || "New User"}`;
+      } else if (config) {
+        const item = await config.model.findById(payment.itemId).select("title name jobTitle planType");
+        itemName = item?.title || item?.name || item?.jobTitle || item?.planType || "Deleted Item";
+      }
+      return {
+        ...payment.toObject(),
+        itemName
+      };
+    }));
+
+    res.status(200).json({ success: true, data: transactions });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 

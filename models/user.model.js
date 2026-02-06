@@ -16,7 +16,9 @@ const userSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    lowercase: true
+    lowercase: true,
+    unique: true,
+    sparse: true
   },
   name: {
     type: String
@@ -118,6 +120,30 @@ const userSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+
+  // Referral & Ambassador Program
+  referralCode: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
+  isAmbassador: {
+    type: Boolean,
+    default: false
+  },
+  walletBalance: {
+    type: Number,
+    default: 0
+  },
+  referredBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  referralCount: {
+    type: Number,
+    default: 0
   },
 }, {
   timestamps: true

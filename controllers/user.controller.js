@@ -1,8 +1,11 @@
 import User from "../models/user.model.js";
+import mongoose from "mongoose";
 import CourseCurriculum from "../models/courseCurriculum.model.js";
 import Lecture from "../models/lecture.model.js";
 import { generateToken } from "../utils/jwt.js";
 import cloudinary from "../config/cloudinary.js";
+import Payment from "../models/payment.model.js";
+import { purchasableItemsMap } from "../services/purchasableItemsMap.js";
 
 
 // Fixed OTP
@@ -11,7 +14,7 @@ const FIXED_OTP = "123456";
 // Mobile OTP Login
 export const mobileLogin = async (req, res) => {
   try {
-    const { mobile, otp } = req.body;
+    const { mobile, otp, referralCode } = req.body;
 
     // Validation
     if (!mobile) {
@@ -46,6 +49,45 @@ export const mobileLogin = async (req, res) => {
         isMobileVerified: true,
         loginMethod: 'mobile'
       });
+
+      // 🎁 Referral Logic
+      if (referralCode) {
+        const referrer = await User.findOne({ referralCode, isAmbassador: true });
+        if (!referrer) {
+          return res.status(400).json({ success: false, message: "Invalid Referral Code" });
+        }
+
+        user.referredBy = referrer._id;
+
+        // Get commission from config
+        const Config = mongoose.model("Config");
+        const commissionConfig = await Config.findOne({ key: "referral_commission" });
+        const commissionAmount = commissionConfig ? Number(commissionConfig.value) : 0;
+
+        referrer.walletBalance += commissionAmount;
+        referrer.referralCount = (referrer.referralCount || 0) + 1;
+        await referrer.save();
+
+        // 🔥 Update AmbassadorApplication collection (Separate collection as requested)
+        const AmbassadorApplication = mongoose.model("AmbassadorApplication");
+        await AmbassadorApplication.findOneAndUpdate(
+          { user: referrer._id },
+          { $inc: { referralCount: 1 } }
+        );
+
+        // 💰 Record Transaction in Payment history
+        await Payment.create({
+          user: referrer._id,
+          itemType: "referral_reward",
+          itemId: user._id, // the new user
+          amount: commissionAmount,
+          status: "success",
+          razorpay: {
+            status: "captured"
+          }
+        });
+      }
+
       await user.save();
     } else {
       // Update existing user
@@ -66,7 +108,11 @@ export const mobileLogin = async (req, res) => {
         id: user._id,
         mobile: user.mobile,
         isMobileVerified: user.isMobileVerified,
-        loginMethod: user.loginMethod
+        loginMethod: user.loginMethod,
+        isAmbassador: user.isAmbassador,
+        referralCode: user.referralCode,
+        walletBalance: user.walletBalance,
+        referralCount: user.referralCount || 0
       }
     });
 
@@ -82,7 +128,7 @@ export const mobileLogin = async (req, res) => {
 // Google Login
 export const googleLogin = async (req, res) => {
   try {
-    const { googleData, mobile } = req.body;
+    const { googleData, mobile, referralCode } = req.body;
 
     // Validation
     if (!googleData || !googleData.id) {
@@ -122,6 +168,45 @@ export const googleLogin = async (req, res) => {
         picture,
         loginMethod: 'google'
       });
+
+      // 🎁 Referral Logic
+      if (referralCode) {
+        const referrer = await User.findOne({ referralCode, isAmbassador: true });
+        if (!referrer) {
+          return res.status(400).json({ success: false, message: "Invalid Referral Code" });
+        }
+
+        user.referredBy = referrer._id;
+
+        // Get commission from config
+        const Config = mongoose.model("Config");
+        const commissionConfig = await Config.findOne({ key: "referral_commission" });
+        const commissionAmount = commissionConfig ? Number(commissionConfig.value) : 0;
+
+        referrer.walletBalance += commissionAmount;
+        referrer.referralCount = (referrer.referralCount || 0) + 1;
+        await referrer.save();
+
+        // 🔥 Update AmbassadorApplication collection (Separate collection as requested)
+        const AmbassadorApplication = mongoose.model("AmbassadorApplication");
+        await AmbassadorApplication.findOneAndUpdate(
+          { user: referrer._id },
+          { $inc: { referralCount: 1 } }
+        );
+
+        // 💰 Record Transaction in Payment history
+        await Payment.create({
+          user: referrer._id,
+          itemType: "referral_reward",
+          itemId: user._id, // the new user
+          amount: commissionAmount,
+          status: "success",
+          razorpay: {
+            status: "captured"
+          }
+        });
+      }
+
       await user.save();
     }
 
@@ -139,7 +224,11 @@ export const googleLogin = async (req, res) => {
         email: user.email,
         name: user.name,
         picture: user.picture,
-        loginMethod: user.loginMethod
+        loginMethod: user.loginMethod,
+        isAmbassador: user.isAmbassador,
+        referralCode: user.referralCode,
+        walletBalance: user.walletBalance,
+        referralCount: user.referralCount || 0
       }
     });
 
@@ -200,7 +289,8 @@ export const getProfile = async (req, res) => {
       .populate({
         path: "purchaseJobs",
         select: "jobTitle companyName location salaryPackage requiredExperience workType isActive"
-      });
+      })
+      .populate("referredBy", "name referralCode");
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -439,6 +529,7 @@ export const getAllUsers = async (req, res) => {
 
     const total = await User.countDocuments(filter);
     const data = await User.find(filter)
+      .populate("referredBy", "name referralCode")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(Number(limit));
@@ -457,5 +548,53 @@ export const getAllUsers = async (req, res) => {
       message: "Internal Server Error",
       error: error.message
     });
+  }
+};
+
+/* ================= MY WALLET API ================= */
+export const getMyWallet = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const user = await User.findById(userId);
+
+    // Fetch all user transactions
+    const payments = await Payment.find({ user: userId }).sort({ createdAt: -1 });
+
+    const transactions = await Promise.all(payments.map(async (payment) => {
+      const config = purchasableItemsMap[payment.itemType];
+      let itemName = "Unknown Item";
+
+      if (payment.itemType === "referral_reward") {
+        const referredUser = await User.findById(payment.itemId).select("name");
+        itemName = `Referral Reward: ${referredUser?.name || "New User"}`;
+      } else if (config) {
+        const item = await config.model.findById(payment.itemId).select("title name jobTitle planType");
+        itemName = item?.title || item?.name || item?.jobTitle || item?.planType || "Deleted Item";
+      }
+
+      return {
+        ...payment.toObject(),
+        itemName
+      };
+    }));
+
+    // Calculate Total Earnings (Sum of all successful referral rewards)
+    const referralPayments = payments.filter(p => p.itemType === "referral_reward" && p.status === "success");
+    const totalEarnings = referralPayments.reduce((acc, curr) => acc + curr.amount, 0);
+
+    // For now withdrawn is 0 as withdrawal logic is not yet implemented
+    const withdrawn = 0;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        totalBalance: user.walletBalance,
+        totalEarnings: totalEarnings,
+        withdrawn: withdrawn,
+        transactions: transactions
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };

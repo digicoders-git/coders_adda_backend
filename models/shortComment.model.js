@@ -11,9 +11,16 @@ const shortCommentSchema = new mongoose.Schema(
 
     userId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User", // later replace with your real user model
+      refPath: "userModel",
       required: true,
       index: true
+    },
+
+    userModel: {
+      type: String,
+      required: true,
+      enum: ["User", "Admin"],
+      default: "User"
     },
 
     commentText: {
