@@ -1,6 +1,9 @@
 import Instructor from "../models/instructor.model.js";
 import bcrypt from "bcryptjs";
 import generateToken from "../config/token.js";
+import Course from "../models/course.model.js";
+import Payment from "../models/payment.model.js";
+import mongoose from "mongoose";
 
 /* ================= CREATE ================= */
 export const createInstructor = async (req, res) => {
@@ -96,7 +99,7 @@ export const getSingleInstructor = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      instructorc
+      instructor
     });
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error", error: error.message });
@@ -192,6 +195,99 @@ export const loginInstructor = async (req, res) => {
         role: instructor.role,
         instructorId: instructor.instructorId
       }
+    });
+
+  } catch (error) {
+    return res.status(500).json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
+/* ================= GET PROFILE/EARNINGS ================= */
+export const getInstructorProfile = async (req, res) => {
+  try {
+    const instructorId = req.instructor.id;
+
+    const instructor = await Instructor.findById(instructorId)
+      .populate({
+        path: "courseEarnings.course",
+        select: "title thumbnail price priceType"
+      })
+      .select("-password");
+
+    if (!instructor) {
+      return res.status(404).json({ message: "Instructor not found" });
+    }
+
+    return res.status(200).json({
+      success: true,
+      instructor
+    });
+  } catch (error) {
+    return res.status(500).json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
+/* ================= GET DASHBOARD STATS ================= */
+export const getInstructorDashboardStats = async (req, res) => {
+  try {
+    const instructorId = new mongoose.Types.ObjectId(req.instructor.id);
+
+    // 1. Get instructor profile for basic stats
+    const instructor = await Instructor.findById(instructorId).populate("courseEarnings.course");
+    if (!instructor) return res.status(404).json({ message: "Instructor not found" });
+
+    // 2. Fundamental Stats
+    const totalCourses = await Course.countDocuments({ instructor: instructorId });
+    const activeCourses = await Course.countDocuments({ instructor: instructorId, isActive: true });
+
+    // Calculate total students (sum of salesCount across all assigned courses)
+    const totalStudents = instructor.courseEarnings.reduce((acc, curr) => acc + (curr.salesCount || 0), 0);
+    const totalEarnings = instructor.totalEarnings || 0;
+
+    // 3. Sales Trend (Last 6 Months)
+    const instructorCourses = await Course.find({ instructor: instructorId }).select("_id");
+    const courseIds = instructorCourses.map(c => c._id);
+
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    const salesTrend = await Payment.aggregate([
+      {
+        $match: {
+          itemId: { $in: courseIds },
+          itemType: "course",
+          status: "success",
+          createdAt: { $gte: sixMonthsAgo }
+        }
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
+          amount: { $sum: "$amount" },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { "_id": 1 } }
+    ]);
+
+    // 4. Course Performance Distribution (Revenue per Course)
+    const courseDistribution = instructor.courseEarnings.map(ce => ({
+      name: ce.course?.title || "Unknown Course",
+      revenue: ce.totalRevenue || 0,
+      earnings: ce.earnedAmount || 0,
+      sales: ce.salesCount || 0
+    })).filter(c => c.revenue > 0);
+
+    return res.status(200).json({
+      success: true,
+      stats: {
+        totalCourses,
+        activeCourses,
+        totalStudents,
+        totalEarnings
+      },
+      salesTrend,
+      courseDistribution
     });
 
   } catch (error) {

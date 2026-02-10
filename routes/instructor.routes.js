@@ -5,8 +5,11 @@ import {
   getSingleInstructor,
   updateInstructor,
   deleteInstructor,
-  loginInstructor
+  loginInstructor,
+  getInstructorProfile,
+  getInstructorDashboardStats
 } from "../controllers/instructor.controller.js";
+import verifyInstructorToken from "../middleware/verifyInstructorToken.js";
 
 const instructorRoute = express.Router();
 
@@ -16,5 +19,7 @@ instructorRoute.get("/get", getAllInstructors);
 instructorRoute.get("/get/:id", getSingleInstructor);
 instructorRoute.put("/update/:id", updateInstructor);
 instructorRoute.delete("/delete/:id", deleteInstructor);
+instructorRoute.get("/profile", verifyInstructorToken, getInstructorProfile);
+instructorRoute.get("/stats", verifyInstructorToken, getInstructorDashboardStats);
 
 export default instructorRoute;

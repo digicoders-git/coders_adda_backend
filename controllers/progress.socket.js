@@ -1,5 +1,9 @@
 import jwt from "jsonwebtoken";
 import UserProgress from "../models/UserProgress.js";
+import Lecture from "../models/lecture.model.js";
+import Course from "../models/course.model.js";
+import CertificateTemplate from "../models/certificateTemplate.model.js";
+import { generateCertificate } from "../utils/certificateGenerator.js";
 
 const registerProgressSocket = (socket, io) => {
   let userId = null;
@@ -87,6 +91,36 @@ const registerProgressSocket = (socket, io) => {
           new: true
         }
       );
+
+      // 📜 CERTIFICATE LOGIC: Check course completion
+      if (completed) {
+        const totalLectures = await Lecture.countDocuments({ course: courseId, isActive: true });
+        const completedLectures = await UserProgress.countDocuments({
+          user: userId,
+          course: courseId,
+          isCompleted: true
+        });
+
+        const coursePercent = (completedLectures / totalLectures) * 100;
+
+        if (coursePercent >= 90) {
+          // Check if course has a template
+          const courseData = await Course.findById(courseId).select("certificateTemplate");
+          if (courseData?.certificateTemplate) {
+            const template = await CertificateTemplate.findById(courseData.certificateTemplate);
+            if (template) {
+              const certificate = await generateCertificate(userId, courseId, template);
+              if (certificate) {
+                socket.emit("certificate:issued", {
+                  success: true,
+                  certificateUrl: certificate.certificateUrl,
+                  message: "Congratulations! You've earned a certificate."
+                });
+              }
+            }
+          }
+        }
+      }
 
       // Acknowledge to app
       socket.emit("progress:saved", {

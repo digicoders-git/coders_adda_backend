@@ -4,6 +4,8 @@ import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
 import CourseCurriculum from "../models/courseCurriculum.model.js";
 import Lecture from "../models/lecture.model.js";
+import CourseCategory from "../models/courseCategory.model.js";
+import Instructor from "../models/instructor.model.js";
 
 /* ================= CREATE COURSE ================= */
 export const createCourse = async (req, res) => {
@@ -17,9 +19,11 @@ export const createCourse = async (req, res) => {
       priceForInstructor,
       whatYouWillLearn,
       faqs,
+      reviews,
       priceType,
       price,
-      badge
+      badge,
+      isActive
     } = req.body;
 
     if (!title || !instructor || !category || !technology || !description) {
@@ -29,20 +33,24 @@ export const createCourse = async (req, res) => {
     // Upload Thumbnail
     let thumbnailData = { url: "", public_id: "" };
     if (req.files?.thumbnail) {
-      const img = await cloudinary.uploader.upload(req.files.thumbnail[0].path, {
+      /* const img = await cloudinary.uploader.upload(req.files.thumbnail[0].path, {
         folder: "courses/thumbnails"
       });
       thumbnailData = {
         url: img.secure_url,
         public_id: img.public_id
       };
-      fs.unlinkSync(req.files.thumbnail[0].path);
+      fs.unlinkSync(req.files.thumbnail[0].path); */
+      thumbnailData = {
+        url: `${process.env.BASE_URL}/uploads/courses/thumbnails/${req.files.thumbnail[0].filename}`,
+        public_id: req.files.thumbnail[0].filename
+      };
     }
 
     // Upload Promo Video
     let videoData = { url: "", public_id: "" };
     if (req.files?.promoVideo) {
-      const vid = await cloudinary.uploader.upload(req.files.promoVideo[0].path, {
+      /* const vid = await cloudinary.uploader.upload(req.files.promoVideo[0].path, {
         folder: "courses/videos",
         resource_type: "video"
       });
@@ -50,7 +58,18 @@ export const createCourse = async (req, res) => {
         url: vid.secure_url,
         public_id: vid.public_id
       };
-      fs.unlinkSync(req.files.promoVideo[0].path);
+      fs.unlinkSync(req.files.promoVideo[0].path); */
+      videoData = {
+        url: `${process.env.BASE_URL}/uploads/courses/videos/${req.files.promoVideo[0].filename}`,
+        public_id: req.files.promoVideo[0].filename
+      };
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(instructor)) {
+      return res.status(400).json({ message: "Invalid instructor ID" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(category)) {
+      return res.status(400).json({ message: "Invalid category ID" });
     }
 
     const course = await Course.create({
@@ -59,12 +78,14 @@ export const createCourse = async (req, res) => {
       category,
       technology,
       description,
-      priceForInstructor,
+      priceForInstructor: priceForInstructor || 15,
       priceType,
-      price,
+      price: priceType === "free" ? 0 : price,
       badge,
       whatYouWillLearn: whatYouWillLearn ? JSON.parse(whatYouWillLearn) : [],
       faqs: faqs ? JSON.parse(faqs) : [],
+      reviews: reviews ? JSON.parse(reviews) : [],
+      isActive: isActive !== undefined ? isActive === "true" : true,
       thumbnail: thumbnailData,
       promoVideo: videoData
     });
@@ -167,7 +188,8 @@ export const getSingleCourse = async (req, res) => {
 
     const course = await Course.findById(id)
       .populate("instructor", "fullName email role")
-      .populate("category", "name");
+      .populate("category", "name")
+      .populate("certificateTemplate");
 
     if (!course) {
       return res.status(404).json({ message: "Course not found" });
@@ -197,6 +219,7 @@ export const getSingleCourse = async (req, res) => {
           pdfUrl: l.resource?.url || "", // Map resource to pdfUrl
           videoUrl: l.video?.url || "",
           thumbnailUrl: l.thumbnail?.url || "",
+          isActive: l.isActive,
           status: l.isActive ? "Active" : "Disabled",
           description: l.description
         }))
@@ -238,6 +261,7 @@ export const updateCourse = async (req, res) => {
       priceForInstructor,
       whatYouWillLearn,
       faqs,
+      reviews,
       isActive,
       priceType,
       price,
@@ -246,8 +270,18 @@ export const updateCourse = async (req, res) => {
 
 
     if (title !== undefined) course.title = title;
-    if (instructor !== undefined) course.instructor = instructor;
-    if (category !== undefined) course.category = category;
+    if (instructor !== undefined) {
+      if (!mongoose.Types.ObjectId.isValid(instructor)) {
+        return res.status(400).json({ message: "Invalid instructor ID" });
+      }
+      course.instructor = instructor;
+    }
+    if (category !== undefined) {
+      if (!mongoose.Types.ObjectId.isValid(category)) {
+        return res.status(400).json({ message: "Invalid category ID" });
+      }
+      course.category = category;
+    }
     if (technology !== undefined) course.technology = technology;
     if (description !== undefined) course.description = description;
     if (priceForInstructor !== undefined) course.priceForInstructor = priceForInstructor;
@@ -259,10 +293,11 @@ export const updateCourse = async (req, res) => {
 
     if (whatYouWillLearn) course.whatYouWillLearn = JSON.parse(whatYouWillLearn);
     if (faqs) course.faqs = JSON.parse(faqs);
+    if (reviews) course.reviews = JSON.parse(reviews);
 
     // Update Thumbnail
     if (req.files?.thumbnail) {
-      if (course.thumbnail?.public_id) {
+      /* if (course.thumbnail?.public_id) {
         await cloudinary.uploader.destroy(course.thumbnail.public_id);
       }
       const img = await cloudinary.uploader.upload(req.files.thumbnail[0].path, {
@@ -272,12 +307,16 @@ export const updateCourse = async (req, res) => {
         url: img.secure_url,
         public_id: img.public_id
       };
-      fs.unlinkSync(req.files.thumbnail[0].path);
+      fs.unlinkSync(req.files.thumbnail[0].path); */
+      course.thumbnail = {
+        url: `${process.env.BASE_URL}/uploads/courses/thumbnails/${req.files.thumbnail[0].filename}`,
+        public_id: req.files.thumbnail[0].filename
+      };
     }
 
     // Update Video
     if (req.files?.promoVideo) {
-      if (course.promoVideo?.public_id) {
+      /* if (course.promoVideo?.public_id) {
         await cloudinary.uploader.destroy(course.promoVideo.public_id, {
           resource_type: "video"
         });
@@ -290,7 +329,11 @@ export const updateCourse = async (req, res) => {
         url: vid.secure_url,
         public_id: vid.public_id
       };
-      fs.unlinkSync(req.files.promoVideo[0].path);
+      fs.unlinkSync(req.files.promoVideo[0].path); */
+      course.promoVideo = {
+        url: `${process.env.BASE_URL}/uploads/courses/videos/${req.files.promoVideo[0].filename}`,
+        public_id: req.files.promoVideo[0].filename
+      };
     }
 
     await course.save();
@@ -320,14 +363,14 @@ export const deleteCourse = async (req, res) => {
     }
 
     // Delete from cloudinary
-    if (course.thumbnail?.public_id) {
+    /* if (course.thumbnail?.public_id) {
       await cloudinary.uploader.destroy(course.thumbnail.public_id);
     }
     if (course.promoVideo?.public_id) {
       await cloudinary.uploader.destroy(course.promoVideo.public_id, {
         resource_type: "video"
       });
-    }
+    } */
 
     await Course.findByIdAndDelete(id);
 
@@ -374,9 +417,25 @@ export const toggleCourseStatus = async (req, res) => {
 /* ================= GET INSTRUCTOR COURSES ================= */
 export const getInstructorCourses = async (req, res) => {
   try {
-    const instructorId = req.instructor.id; // From middleware
+    const instructorId = req.instructor?.id;
 
-    const courses = await Course.find({ instructor: instructorId })
+    if (!instructorId) {
+      return res.status(400).json({ message: "Instructor ID not found in token" });
+    }
+
+    // Convert to ObjectId if valid, else keep as string (fallback)
+    const instructorObjectId = mongoose.Types.ObjectId.isValid(instructorId)
+      ? new mongoose.Types.ObjectId(instructorId)
+      : null;
+
+    const query = {
+      $or: [
+        { instructor: instructorId },
+        ...(instructorObjectId ? [{ instructor: instructorObjectId }] : [])
+      ]
+    };
+
+    const courses = await Course.find(query)
       .populate("category", "name")
       .sort({ createdAt: -1 });
 

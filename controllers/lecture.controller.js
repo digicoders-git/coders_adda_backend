@@ -23,33 +23,45 @@ export const createLecture = async (req, res) => {
     // Upload Video
     let videoData = {};
     if (req.files?.video) {
-      const v = await cloudinary.uploader.upload(req.files.video[0].path, {
+      /* const v = await cloudinary.uploader.upload(req.files.video[0].path, {
         folder: "lectures/videos",
         resource_type: "video"
       });
       videoData = { url: v.secure_url, public_id: v.public_id };
-      fs.unlinkSync(req.files.video[0].path);
+      fs.unlinkSync(req.files.video[0].path); */
+      videoData = {
+        url: `${process.env.BASE_URL}/uploads/lectures/videos/${req.files.video[0].filename}`,
+        public_id: req.files.video[0].filename
+      };
     }
 
     // Upload Thumbnail
     let thumbData = {};
     if (req.files?.thumbnail) {
-      const t = await cloudinary.uploader.upload(req.files.thumbnail[0].path, {
+      /* const t = await cloudinary.uploader.upload(req.files.thumbnail[0].path, {
         folder: "lectures/thumbnails"
       });
       thumbData = { url: t.secure_url, public_id: t.public_id };
-      fs.unlinkSync(req.files.thumbnail[0].path);
+      fs.unlinkSync(req.files.thumbnail[0].path); */
+      thumbData = {
+        url: `${process.env.BASE_URL}/uploads/lectures/thumbnails/${req.files.thumbnail[0].filename}`,
+        public_id: req.files.thumbnail[0].filename
+      };
     }
 
     // Upload Resource PDF
     let resourceData = {};
     if (req.files?.resource) {
-      const r = await cloudinary.uploader.upload(req.files.resource[0].path, {
+      /* const r = await cloudinary.uploader.upload(req.files.resource[0].path, {
         folder: "lectures/resources",
         resource_type: "raw"
       });
       resourceData = { url: r.secure_url, public_id: r.public_id };
-      fs.unlinkSync(req.files.resource[0].path);
+      fs.unlinkSync(req.files.resource[0].path); */
+      resourceData = {
+        url: `${process.env.BASE_URL}/uploads/lectures/resources/${req.files.resource[0].filename}`,
+        public_id: req.files.resource[0].filename
+      };
     }
 
     const lecture = await Lecture.create({
@@ -153,7 +165,7 @@ export const updateLecture = async (req, res) => {
 
     // Update video
     if (req.files?.video) {
-      if (lecture.video?.public_id) {
+      /* if (lecture.video?.public_id) {
         await cloudinary.uploader.destroy(lecture.video.public_id, { resource_type: "video" });
       }
       const v = await cloudinary.uploader.upload(req.files.video[0].path, {
@@ -161,24 +173,32 @@ export const updateLecture = async (req, res) => {
         resource_type: "video"
       });
       lecture.video = { url: v.secure_url, public_id: v.public_id };
-      fs.unlinkSync(req.files.video[0].path);
+      fs.unlinkSync(req.files.video[0].path); */
+      lecture.video = {
+        url: `${process.env.BASE_URL}/uploads/lectures/videos/${req.files.video[0].filename}`,
+        public_id: req.files.video[0].filename
+      };
     }
 
     // Update thumbnail
     if (req.files?.thumbnail) {
-      if (lecture.thumbnail?.public_id) {
+      /* if (lecture.thumbnail?.public_id) {
         await cloudinary.uploader.destroy(lecture.thumbnail.public_id);
       }
       const t = await cloudinary.uploader.upload(req.files.thumbnail[0].path, {
         folder: "lectures/thumbnails"
       });
       lecture.thumbnail = { url: t.secure_url, public_id: t.public_id };
-      fs.unlinkSync(req.files.thumbnail[0].path);
+      fs.unlinkSync(req.files.thumbnail[0].path); */
+      lecture.thumbnail = {
+        url: `${process.env.BASE_URL}/uploads/lectures/thumbnails/${req.files.thumbnail[0].filename}`,
+        public_id: req.files.thumbnail[0].filename
+      };
     }
 
     // Update resource
     if (req.files?.resource) {
-      if (lecture.resource?.public_id) {
+      /* if (lecture.resource?.public_id) {
         await cloudinary.uploader.destroy(lecture.resource.public_id, { resource_type: "raw" });
       }
       const r = await cloudinary.uploader.upload(req.files.resource[0].path, {
@@ -186,7 +206,11 @@ export const updateLecture = async (req, res) => {
         resource_type: "raw"
       });
       lecture.resource = { url: r.secure_url, public_id: r.public_id };
-      fs.unlinkSync(req.files.resource[0].path);
+      fs.unlinkSync(req.files.resource[0].path); */
+      lecture.resource = {
+        url: `${process.env.BASE_URL}/uploads/lectures/resources/${req.files.resource[0].filename}`,
+        public_id: req.files.resource[0].filename
+      };
     }
 
     await lecture.save();
@@ -210,7 +234,7 @@ export const deleteLecture = async (req, res) => {
     const lecture = await Lecture.findById(id);
     if (!lecture) return res.status(404).json({ message: "Lecture not found" });
 
-    if (lecture.video?.public_id) {
+    /* if (lecture.video?.public_id) {
       await cloudinary.uploader.destroy(lecture.video.public_id, { resource_type: "video" });
     }
     if (lecture.thumbnail?.public_id) {
@@ -218,7 +242,7 @@ export const deleteLecture = async (req, res) => {
     }
     if (lecture.resource?.public_id) {
       await cloudinary.uploader.destroy(lecture.resource.public_id, { resource_type: "raw" });
-    }
+    } */
 
     await Lecture.findByIdAndDelete(id);
 

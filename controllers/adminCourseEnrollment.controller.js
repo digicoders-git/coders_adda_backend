@@ -3,6 +3,7 @@ import User from "../models/user.model.js";
 import Course from "../models/course.model.js";
 import UserProgress from "../models/UserProgress.js";
 import Payment from "../models/payment.model.js";
+import Certificate from "../models/certificate.model.js";
 import Lecture from "../models/lecture.model.js";
 
 // Helper: Parse duration string ("10 min", "1:20:30", "05:20") into seconds
@@ -193,16 +194,31 @@ export const getCourseStudents = async (req, res) => {
       { $group: { _id: "$user", watched: { $sum: "$watchedSeconds" } } }
     ]);
 
+    // Fetch issued certificates
+    const issuedCertificates = await Certificate.find({
+      course: cid,
+      user: { $in: studentIds }
+    }).lean();
+
     const progressMap = progressData.reduce((acc, curr) => {
       acc[curr._id.toString()] = curr.watched;
       return acc;
     }, {});
 
+    const certMap = issuedCertificates.reduce((acc, curr) => {
+      acc[curr.user.toString()] = curr;
+      return acc;
+    }, {});
+
     const result = students.map(s => {
       const watched = progressMap[s._id.toString()] || 0;
+      const cert = certMap[s._id.toString()];
       return {
         ...s,
         progress: totalDuration > 0 ? Math.round(Math.min(100, (watched / totalDuration) * 100)) : 0,
+        isCertificateIssued: !!cert,
+        certificateUrl: cert ? cert.certificateUrl : null,
+        certificateId: cert ? cert.certificateId : null,
         isCourseBlocked: false // Placeholder
       };
     });

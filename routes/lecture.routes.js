@@ -25,7 +25,7 @@ lectureRoute.get("/get", getAllLectures);
 lectureRoute.get("/get/by-course/:courseId", getLecturesByCourse);
 lectureRoute.get("/get/:id", getSingleLecture);
 
-lectureRoute.put(
+lectureRoute.patch(
   "/update/:id",
   upload.fields([
     { name: "video", maxCount: 1 },

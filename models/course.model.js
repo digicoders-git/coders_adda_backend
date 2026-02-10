@@ -78,7 +78,7 @@ const courseSchema = new mongoose.Schema({
       }
     }
   ],
-    // ================= PRICING =================
+  // ================= PRICING =================
   priceType: {
     type: String,
     enum: ["free", "paid"],
@@ -98,10 +98,14 @@ const courseSchema = new mongoose.Schema({
   },
 
 
-  // ================= COURSE STATUS =================
   isActive: {
     type: Boolean,
     default: true
+  },
+
+  certificateTemplate: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "CertificateTemplate"
   }
 
 }, { timestamps: true });

@@ -6,6 +6,9 @@ import { generateToken } from "../utils/jwt.js";
 import cloudinary from "../config/cloudinary.js";
 import Payment from "../models/payment.model.js";
 import { purchasableItemsMap } from "../services/purchasableItemsMap.js";
+import QuizCertificate from "../models/quizCertificate.model.js";
+import fs from "fs";
+import path from "path";
 
 
 // Fixed OTP
@@ -24,6 +27,7 @@ export const mobileLogin = async (req, res) => {
       });
     }
 
+
     if (!otp) {
       return res.status(400).json({
         success: false,
@@ -41,6 +45,9 @@ export const mobileLogin = async (req, res) => {
 
     // Find existing user
     let user = await User.findOne({ mobile });
+    // if(user.isActive == false){
+    //   return res.status(400).json({success:false,message:'Your account is blocked, contact to DigiCoders'})
+    // }
 
     if (!user) {
       // Create new user
@@ -285,12 +292,16 @@ export const getProfile = async (req, res) => {
         ]
       })
 
-      // ================= JOBS =================
       .populate({
         path: "purchaseJobs",
         select: "jobTitle companyName location salaryPackage requiredExperience workType isActive"
       })
       .populate("referredBy", "name referralCode");
+
+    // Fetch Quiz Certificates separately
+    const quizCertificates = await QuizCertificate.find({ user: userId })
+      .populate("quiz", "title quizCode")
+      .sort({ issuedAt: -1 });
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -331,6 +342,7 @@ export const getProfile = async (req, res) => {
     // Replace flat purchaseCourses with nested hierarchy
     const userObj = user.toObject();
     userObj.purchaseCourses = coursesWithContent;
+    userObj.quizCertificates = quizCertificates;
 
     return res.json({
       success: true,
@@ -406,17 +418,24 @@ export const updateUserProfile = async (req, res) => {
     if (req.file) {
       // Purani image delete (optional but recommended)
       if (user.profilePicture && user.profilePicture.public_id) {
-        await cloudinary.uploader.destroy(user.profilePicture.public_id);
+        /* await cloudinary.uploader.destroy(user.profilePicture.public_id); */
+        const oldFilePath = path.join("uploads/users/profile_pictures", user.profilePicture.public_id);
+        if (fs.existsSync(oldFilePath)) {
+          fs.unlinkSync(oldFilePath);
+        }
       }
 
-      const uploadResult = await cloudinary.uploader.upload(req.file.path, {
+      /* const uploadResult = await cloudinary.uploader.upload(req.file.path, {
         folder: "users/profile_pictures",
         crop: "fill"
-      });
+      }); */
+
+      const baseUrl = process.env.BASE_URL;
+      const imageUrl = `${baseUrl}/uploads/users/profile_pictures/${req.file.filename}`;
 
       user.profilePicture = {
-        url: uploadResult.secure_url,
-        public_id: uploadResult.public_id
+        url: imageUrl,
+        public_id: req.file.filename
       };
     }
 

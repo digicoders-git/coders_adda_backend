@@ -28,6 +28,7 @@ import adminEbookEnrollmentRoutes from './routes/adminEbookEnrollment.routes.js'
 import adminJobEnrollmentRoutes from './routes/adminJobEnrollment.routes.js';
 import adminSalesRoutes from './routes/adminSales.routes.js';
 import ambassadorRoutes from './routes/ambassador.routes.js';
+import certificateRoute from './routes/certificate.routes.js';
 import http from "http";
 import { initSocket } from "./config/socket.js";
 dotenv.config()
@@ -35,7 +36,10 @@ import "./cron/subscriptionExpiry.cron.js";
 
 const app = express()
 const port = process.env.PORT || 3000
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: false,
+}));
+
 app.use(
   cors({
     origin: true,
@@ -45,6 +49,10 @@ app.use(
 // Body parsers
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use('/uploads', (req, res, next) => {
+  res.header("Cross-Origin-Resource-Policy", "cross-origin");
+  next();
+}, express.static('uploads'));
 
 await connectDB();
 
@@ -73,6 +81,7 @@ app.use('/admin/ebook-enrollments', adminEbookEnrollmentRoutes)
 app.use('/admin/job-enrollments', adminJobEnrollmentRoutes)
 app.use('/admin/sales', adminSalesRoutes)
 app.use('/ambassador', ambassadorRoutes)
+app.use('/certificate', certificateRoute)
 
 
 // 404 handler

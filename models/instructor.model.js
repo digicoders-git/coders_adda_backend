@@ -30,7 +30,33 @@ const instructorSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
-  }
+  },
+
+  totalEarnings: {
+    type: Number,
+    default: 0
+  },
+
+  courseEarnings: [
+    {
+      course: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Course"
+      },
+      earnedAmount: {
+        type: Number,
+        default: 0
+      },
+      totalRevenue: {
+        type: Number,
+        default: 0
+      },
+      salesCount: {
+        type: Number,
+        default: 0
+      }
+    }
+  ]
 
 }, { timestamps: true });
 

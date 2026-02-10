@@ -156,6 +156,11 @@ export const getUserById = async (req, res) => {
     }
 
     // Attach progress to each course (Watched Time Based)
+    let totalProgress = 0;
+    let totalWatchedSeconds = 0;
+    let completedCoursesCount = 0;
+    let ongoingCoursesCount = 0;
+
     const coursesWithProgress = await Promise.all((user.purchaseCourses || []).map(async (course) => {
       const lectures = await Lecture.find({ course: course._id }).select("duration").lean();
       const totalDuration = lectures.reduce((acc, l) => acc + parseDuration(l.duration), 0);
@@ -168,10 +173,35 @@ export const getUserById = async (req, res) => {
       const watched = userProgressDocs.reduce((acc, doc) => acc + (doc.watchedSeconds || 0), 0);
       const progress = totalDuration > 0 ? Math.round(Math.min(100, (watched / totalDuration) * 100)) : 0;
 
+      totalProgress += progress;
+      totalWatchedSeconds += watched;
+
+      if (progress === 100) completedCoursesCount++;
+      else if (progress > 0) ongoingCoursesCount++;
+
       return { ...course, progressPercentage: progress };
     }));
 
     user.purchaseCourses = coursesWithProgress;
+
+    // Fetch Quiz Certificates
+    const QuizCertificate = (await import("../models/quizCertificate.model.js")).default;
+    const quizCertificates = await QuizCertificate.find({ user: id }).populate("quiz", "title quizCode").lean();
+
+    // Student Stats Calculation
+    const totalCourses = user.purchaseCourses.length;
+    const avgProgress = totalCourses > 0 ? Math.round(totalProgress / totalCourses) : 0;
+    const learningHours = Math.round(totalWatchedSeconds / 3600);
+
+    user.studentDetails = {
+      completedCourses: completedCoursesCount,
+      ongoingCourses: ongoingCoursesCount,
+      learningHours: learningHours,
+      progress: avgProgress,
+      createdAt: user.createdAt
+    };
+
+    user.quizCertificates = quizCertificates;
 
     return res.status(200).json({ success: true, data: user });
   } catch (error) {

@@ -4,6 +4,7 @@ import Payment from "../models/payment.model.js";
 import User from "../models/user.model.js";
 // import { resolveProduct } from "../services/productResolver.service.js";
 import { purchasableItemsMap } from "../services/purchasableItemsMap.js";
+import { calculateInstructorEarning } from "../utils/earningHandler.js";
 
 /* ===============================
    1️⃣ CREATE ORDER
@@ -131,11 +132,15 @@ export const verifyPayment = async (req, res) => {
     await config.unlock(user, payment.itemId);
     await user.save();
 
-    // 🔥 THEN mark payment success
     payment.status = "success";
     payment.razorpay.payment = req.body;
     payment.razorpay.status = "captured";
     await payment.save();
+
+    // 🔥 Calculate Instructor Earning
+    if (payment.itemType === "course") {
+      await calculateInstructorEarning(payment.itemId, payment.amount);
+    }
 
 
     return res.json({
@@ -194,6 +199,7 @@ export const payWithWallet = async (req, res) => {
     const user = await User.findById(userId);
 
     // 🔥 Check Balance
+    // console.log(user.walletBalance, amount);
     if (user.walletBalance < amount) {
       return res.status(400).json({
         success: false,
@@ -217,6 +223,11 @@ export const payWithWallet = async (req, res) => {
       paymentMethod: "wallet",
       status: "success"
     });
+
+    // 🔥 Calculate Instructor Earning
+    if (itemType === "course") {
+      await calculateInstructorEarning(itemId, amount);
+    }
 
     return res.json({
       success: true,

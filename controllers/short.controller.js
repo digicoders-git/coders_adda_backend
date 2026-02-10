@@ -1,5 +1,7 @@
 import Short from "../models/short.model.js";
 import cloudinary from "../config/cloudinary.js";
+import fs from "fs";
+import path from "path";
 
 /* ================= CREATE SHORT (ADMIN) ================= */
 export const createShort = async (req, res) => {
@@ -18,17 +20,19 @@ export const createShort = async (req, res) => {
       });
     }
 
-    const uploadResult = await cloudinary.uploader.upload(req.file.path, {
+    /* const uploadResult = await cloudinary.uploader.upload(req.file.path, {
       folder: "shorts",
       resource_type: "video"
-    });
+    }); */
+    const baseUrl = process.env.BASE_URL;
+    const videoUrl = `${baseUrl}/uploads/shorts/${req.file.filename}`;
 
     const short = await Short.create({
       instructorName,
       caption,
       video: {
-        url: uploadResult.secure_url,
-        public_id: uploadResult.public_id
+        url: videoUrl,
+        public_id: req.file.filename
       }
     });
 
@@ -63,21 +67,27 @@ export const updateShort = async (req, res) => {
 
     // If new video uploaded
     if (req.file) {
-      // delete old video from cloudinary
+      // delete old video
       if (short.video?.public_id) {
-        await cloudinary.uploader.destroy(short.video.public_id, {
+        /* await cloudinary.uploader.destroy(short.video.public_id, {
           resource_type: "video"
-        });
+        }); */
+        const oldFilePath = path.join("uploads/shorts", short.video.public_id);
+        if (fs.existsSync(oldFilePath)) {
+          fs.unlinkSync(oldFilePath);
+        }
       }
 
-      const uploadResult = await cloudinary.uploader.upload(req.file.path, {
+      /* const uploadResult = await cloudinary.uploader.upload(req.file.path, {
         folder: "shorts",
         resource_type: "video"
-      });
+      }); */
+      const baseUrl = process.env.BASE_URL;
+      const videoUrl = `${baseUrl}/uploads/shorts/${req.file.filename}`;
 
       short.video = {
-        url: uploadResult.secure_url,
-        public_id: uploadResult.public_id
+        url: videoUrl,
+        public_id: req.file.filename
       };
     }
 
@@ -106,11 +116,15 @@ export const deleteShort = async (req, res) => {
       return res.status(404).json({ message: "Short not found" });
     }
 
-    // delete video from cloudinary
+    // delete video locally
     if (short.video?.public_id) {
-      await cloudinary.uploader.destroy(short.video.public_id, {
+      /* await cloudinary.uploader.destroy(short.video.public_id, {
         resource_type: "video"
-      });
+      }); */
+      const filePath = path.join("uploads/shorts", short.video.public_id);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
     }
 
     await short.deleteOne();

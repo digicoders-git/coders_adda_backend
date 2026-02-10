@@ -53,12 +53,11 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: ""
   },
-  socialLinks: [
-    {
-      type: String,
-      default: ""
-    }
-  ],
+  socialLinks: {
+    github: { type: String, default: "" },
+    linkedin: { type: String, default: "" },
+    portfolio: { type: String, default: "" }
+  },
   profilePicture: {
     url: { type: String, default: "" },
     public_id: { type: String, default: "" }

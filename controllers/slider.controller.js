@@ -1,5 +1,7 @@
 import Slider from "../models/slider.model.js";
 import cloudinary from "../config/cloudinary.js";
+import fs from "fs";
+import path from "path";
 
 /* ================= CREATE SLIDER ================= */
 export const createSlider = async (req, res) => {
@@ -8,14 +10,16 @@ export const createSlider = async (req, res) => {
       return res.status(400).json({ message: "Image is required" });
     }
 
-    const uploadResult = await cloudinary.uploader.upload(req.file.path, {
+    /* const uploadResult = await cloudinary.uploader.upload(req.file.path, {
       folder: "sliders"
-    });
+    }); */
+    const baseUrl = process.env.BASE_URL;
+    const imageUrl = `${baseUrl}/uploads/sliders/${req.file.filename}`;
 
     const slider = await Slider.create({
       image: {
-        url: uploadResult.secure_url,
-        public_id: uploadResult.public_id
+        url: imageUrl,
+        public_id: req.file.filename
       }
     });
 
@@ -40,18 +44,25 @@ export const updateSlider = async (req, res) => {
     }
 
     if (req.file) {
-      // delete old image from cloudinary
+      // delete old image
       if (slider.image?.public_id) {
-        await cloudinary.uploader.destroy(slider.image.public_id);
+        /* await cloudinary.uploader.destroy(slider.image.public_id); */
+        const oldFilePath = path.join("uploads/sliders", slider.image.public_id);
+        if (fs.existsSync(oldFilePath)) {
+          fs.unlinkSync(oldFilePath);
+        }
       }
 
-      const uploadResult = await cloudinary.uploader.upload(req.file.path, {
+      /* const uploadResult = await cloudinary.uploader.upload(req.file.path, {
         folder: "sliders"
-      });
+      }); */
+
+      const baseUrl = process.env.BASE_URL;
+      const imageUrl = `${baseUrl}/uploads/sliders/${req.file.filename}`;
 
       slider.image = {
-        url: uploadResult.secure_url,
-        public_id: uploadResult.public_id
+        url: imageUrl,
+        public_id: req.file.filename
       };
     }
 
@@ -77,9 +88,13 @@ export const deleteSlider = async (req, res) => {
       return res.status(404).json({ message: "Slider not found" });
     }
 
-    // delete image from cloudinary
+    // delete image locally
     if (slider.image?.public_id) {
-      await cloudinary.uploader.destroy(slider.image.public_id);
+      /* await cloudinary.uploader.destroy(slider.image.public_id); */
+      const filePath = path.join("uploads/sliders", slider.image.public_id);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
     }
 
     await slider.deleteOne();
