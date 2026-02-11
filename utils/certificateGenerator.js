@@ -1,64 +1,24 @@
-import { createCanvas, loadImage, registerFont } from "canvas";
+import puppeteer from "puppeteer";
 import fs from "fs";
 import path from "path";
-import cloudinary from "../config/cloudinary.js";
 import Certificate from "../models/certificate.model.js";
 import User from "../models/user.model.js";
 import Course from "../models/course.model.js";
+import { generateFontCSS } from "./fontCssGenerator.js";
+import { generateCertificateHTML } from "./certificateHtml.js";
 
 /**
- * Generates a certificate for a user and uploads it to Cloudinary.
+ * Generates a certificate for a user based on stored template configuration using Puppeteer.
  */
 export const generateCertificate = async (userId, courseId, template) => {
+  let browser = null;
   try {
-    // Check if already issued
     const existing = await Certificate.findOne({ user: userId, course: courseId });
     if (existing) return existing;
 
     const user = await User.findById(userId);
     const course = await Course.findById(courseId);
-
     if (!user || !course) throw new Error("User or Course not found");
-
-    // Dimensions from template
-    const width = parseInt(template.width) || 1200;
-    const height = parseInt(template.height) || 800;
-    const canvas = createCanvas(width, height);
-    const ctx = canvas.getContext("2d");
-
-    // Load Background Template Image
-    const image = await loadImage(template.certificateImage);
-    ctx.drawImage(image, 0, 0, width, height);
-
-    // Function to draw text based on template config
-    const drawTemplateText = (config, text) => {
-      if (!config || !config.status || !text) return;
-
-      // Construct font string: "italic bold 40px Arial"
-      const fontStyle = config.italic ? "italic " : "";
-      const fontWeight = config.bold ? "bold " : "";
-      ctx.font = `${fontStyle}${fontWeight}${config.fontSize} ${config.fontFamily || "Arial"}`;
-
-      ctx.fillStyle = config.textColor || "#000000";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-
-      const x = parseFloat(config.horizontalPosition);
-      const y = parseFloat(config.verticalPosition);
-
-      ctx.fillText(text, x, y);
-
-      if (config.underline) {
-        const metrics = ctx.measureText(text);
-        const textWidth = metrics.width;
-        ctx.beginPath();
-        ctx.strokeStyle = config.textColor || "#000000";
-        ctx.lineWidth = 2;
-        ctx.moveTo(x - textWidth / 2, y + parseInt(config.fontSize) / 2);
-        ctx.lineTo(x + textWidth / 2, y + parseInt(config.fontSize) / 2);
-        ctx.stroke();
-      }
-    };
 
     const certId = `CERT-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
     const issueDate = new Date().toLocaleDateString("en-IN", {
@@ -67,44 +27,74 @@ export const generateCertificate = async (userId, courseId, template) => {
       year: "numeric"
     });
 
-    // Draw Dynamic Fields based on template configuration
-    drawTemplateText(template.studentName, user.name || user.fullName);
-    drawTemplateText(template.courseName, course.title);
-    drawTemplateText(template.certificateId, certId);
-    drawTemplateText(template.collegeName, user.college || "CodersAdda");
-    drawTemplateText(template.issueDate, issueDate);
+    console.log(`🚀 Starting Puppeteer for: ${user.name} - ${course.title}`);
 
-    const buffer = canvas.toBuffer("image/png");
+    // 1. Launch Browser
+    browser = await puppeteer.launch({
+      headless: "new",
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-web-security", "--disable-dev-shm-usage"]
+    });
 
-    // Save Locally
+    const page = await browser.newPage();
+
+    // 🚩 Debugging: Catch page errors
+    page.on("console", (msg) => console.log("📄 Puppeteer Log:", msg.text()));
+    page.on("pageerror", (err) => console.error("❌ Puppeteer Page Error:", err.message));
+
+    // 2. Prepare HTML & CSS
+    // Extract required font families to keep HTML size small
+    const getLayer = (l) => template[l] || (template._doc ? template._doc[l] : null);
+    const layers = ["studentName", "courseName", "certificateId", "collegeName", "issueDate"];
+    const requiredFamilies = layers
+      .map(l => {
+        const layer = getLayer(l);
+        return layer?.fontFamily?.split(',')[0].trim().replace(/['"]/g, "");
+      })
+      .filter(f => f);
+
+    const uniqueFamilies = [...new Set(requiredFamilies)];
+    console.log(`🔡 Fonts requested: ${uniqueFamilies.join(', ')}`);
+    console.log(`🖼️ Background Image URL: ${template.certificateImage}`);
+
+    const fontCSS = generateFontCSS(uniqueFamilies);
+    const html = generateCertificateHTML(template, user, course, fontCSS, certId, issueDate);
+    console.log(`📄 Generated HTML Size: ${(html.length / 1024 / 1024).toFixed(2)} MB`);
+
+    // 3. Set Content
+    await page.setViewport({
+      width: parseInt(template.width) || 1200,
+      height: parseInt(template.height) || 800,
+      deviceScaleFactor: 2
+    });
+
+    // Use only 'load' to avoid waiting for every single background request for 60s
+    await page.setContent(html, {
+      waitUntil: "load",
+      timeout: 60000
+    });
+
+    // 4. Generate Screenshot
     const certificatesDir = "uploads/certificates/issued";
-    if (!fs.existsSync(certificatesDir)) {
-      fs.mkdirSync(certificatesDir, { recursive: true });
-    }
+    if (!fs.existsSync(certificatesDir)) fs.mkdirSync(certificatesDir, { recursive: true });
 
     const fileName = `${certId}.png`;
     const filePath = path.join(certificatesDir, fileName);
-    fs.writeFileSync(filePath, buffer);
+
+    // Give it a larger buffer for fonts to settle (3 seconds)
+    await new Promise(r => setTimeout(r, 3000));
+
+    await page.screenshot({
+      path: filePath,
+      type: "png",
+      fullPage: true,
+      omitBackground: true
+    });
+
+    console.log(`✅ Certificate File Generated at: ${filePath}`);
 
     const certificateUrl = `${process.env.BASE_URL}/${certificatesDir}/${fileName}`;
 
-    /* // Upload to Cloudinary
-    const uploadResult = await new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        {
-          folder: "issued_certificates",
-          public_id: certId,
-          resource_type: "image"
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      );
-      stream.end(buffer);
-    }); */
-
-    // Save to Database
+    // 5. Save to Database
     const certificate = await Certificate.create({
       user: userId,
       course: courseId,
@@ -113,10 +103,12 @@ export const generateCertificate = async (userId, courseId, template) => {
       issuedAt: new Date()
     });
 
+    await browser.close();
     return certificate;
 
   } catch (error) {
-    console.error("Certificate Generation Error:", error);
+    console.error("❌ Puppeteer Certificate Generation Error:", error);
+    if (browser) await browser.close();
     return null;
   }
 };
