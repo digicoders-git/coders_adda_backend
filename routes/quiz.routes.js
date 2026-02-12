@@ -42,8 +42,8 @@ const router = express.Router();
 
 /* Quiz Routes */
 router.post("/create", verifyAdminToken, createQuiz);
-router.get("/get", userAuth, getAllQuizzes);
-router.get("/get/:id", userAuth, getQuizById);
+router.get("/get", getAllQuizzes);
+router.get("/get/:id", getQuizById);
 router.put("/update/:id", verifyAdminToken, updateQuiz);
 router.delete("/delete/:id", verifyAdminToken, deleteQuiz);
 router.patch("/toggle-status/:id", verifyAdminToken, toggleQuizStatus);
