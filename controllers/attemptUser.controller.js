@@ -31,9 +31,23 @@ export const createAttempt = async (req, res) => {
     let marks = 0;
     const pointsPerQuestion = quiz.points || 1;
 
+    // Filter questions if quiz has specific selected questions
+    let quizQuestions = topic.questions;
+    if (quiz.selectedQuestions && quiz.selectedQuestions.length > 0) {
+      const selectedIds = quiz.selectedQuestions.map((id) => id.toString());
+      quizQuestions = topic.questions.filter((q) =>
+        selectedIds.includes(q._id.toString()),
+      );
+    }
+
+    // Combine with custom manual questions
+    if (quiz.customQuestions && quiz.customQuestions.length > 0) {
+      quizQuestions = [...quizQuestions, ...quiz.customQuestions];
+    }
+
     // Create a map or object for quick lookup of correct answers
     const correctAnswersMap = {};
-    topic.questions.forEach((q) => {
+    quizQuestions.forEach((q) => {
       correctAnswersMap[q._id.toString()] = q.correctAnswer;
     });
 
@@ -45,7 +59,7 @@ export const createAttempt = async (req, res) => {
       }
     });
 
-    const totalMarks = topic.questions.length * pointsPerQuestion;
+    const totalMarks = quizQuestions.length * pointsPerQuestion;
 
     // 3. Create Attempt Record
     const attempt = await AttemptUser.create({
@@ -240,7 +254,20 @@ export const exportUserQuizResultPDF = async (req, res) => {
     const rank = allAttempts.findIndex(a => a.studentId.toString() === studentId) + 1;
 
     const doc = new jsPDF();
-    const questions = quiz.questionTopicId?.questions || [];
+    let questions = quiz.questionTopicId?.questions || [];
+
+    // Respect selected questions
+    if (quiz.selectedQuestions && quiz.selectedQuestions.length > 0) {
+      const selectedIds = quiz.selectedQuestions.map((id) => id.toString());
+      questions = questions.filter((q) =>
+        selectedIds.includes(q._id.toString()),
+      );
+    }
+
+    // Add custom questions
+    if (quiz.customQuestions && quiz.customQuestions.length > 0) {
+      questions = [...questions, ...quiz.customQuestions];
+    }
 
     // Header
     doc.setFontSize(18);

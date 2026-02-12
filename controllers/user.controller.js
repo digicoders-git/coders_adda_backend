@@ -387,7 +387,15 @@ export const updateUserProfile = async (req, res) => {
     }
 
     // 🔹 Normal fields update
-    if (name !== undefined) user.name = name;
+    if (name !== undefined) {
+      if (name.trim() && !/^[a-zA-Z\s]+$/.test(name)) {
+        return res.status(400).json({
+          success: false,
+          message: "Name should only contain letters and spaces"
+        });
+      }
+      user.name = name;
+    }
     if (email !== undefined) user.email = email;
     if (about !== undefined) user.about = about;
 

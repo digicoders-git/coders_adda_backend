@@ -4,7 +4,7 @@ const ebookSchema = new mongoose.Schema({
 
   category: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "courseCategory",
+    ref: "EbooksCategory",
     required: true
   },
 

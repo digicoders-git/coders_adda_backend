@@ -4,7 +4,18 @@ import QuestionTopic from "../models/questionTopic.model.js";
 /* ================= CREATE QUIZ ================= */
 export const createQuiz = async (req, res) => {
   try {
-    const { title, quizCode, description, duration, level, points, status, questionTopicId } = req.body;
+    const {
+      title,
+      quizCode,
+      description,
+      duration,
+      level,
+      points,
+      status,
+      questionTopicId,
+      selectedQuestions,
+      customQuestions,
+    } = req.body;
 
     // Check if questionTopic exists and get question count
     const topic = await QuestionTopic.findById(questionTopicId);
@@ -24,7 +35,12 @@ export const createQuiz = async (req, res) => {
       points,
       status: status !== undefined ? status : true,
       questionTopicId,
-      totalQuestions: topic.questions.length
+      selectedQuestions: selectedQuestions || [],
+      customQuestions: customQuestions || [],
+      totalQuestions:
+        (selectedQuestions && selectedQuestions.length > 0
+          ? selectedQuestions.length
+          : topic.questions.length) + (customQuestions ? customQuestions.length : 0),
     });
 
     res.status(201).json({
@@ -44,7 +60,7 @@ export const createQuiz = async (req, res) => {
 /* ================= GET ALL QUIZZES ================= */
 export const getAllQuizzes = async (req, res) => {
   try {
-    const { search, level } = req.query;
+    const { search, level, status, page = 1, limit = 10 } = req.query;
 
     let filter = {};
 
@@ -59,13 +75,28 @@ export const getAllQuizzes = async (req, res) => {
       filter.level = level;
     }
 
+    if (status !== undefined && status !== "") {
+      filter.status = status === "true" || status === true;
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const totalCount = await Quiz.countDocuments(filter);
+
     const quizzes = await Quiz.find(filter)
       .populate("questionTopicId")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
 
     res.json({
       success: true,
-      data: quizzes
+      data: quizzes,
+      pagination: {
+        totalCount,
+        totalPages: Math.ceil(totalCount / parseInt(limit)),
+        currentPage: parseInt(page),
+        limit: parseInt(limit)
+      }
     });
   } catch (error) {
     res.status(500).json({
@@ -85,13 +116,24 @@ export const getQuizById = async (req, res) => {
       .populate("attempts")
       .populate("certificateTemplate");
 
-    if (!quiz) {
-      return res.status(404).json({ success: false, message: "Quiz not found" });
+    // Convert to plain object to modify questions
+    let quizData = quiz.toObject();
+
+    if (
+      quizData.selectedQuestions &&
+      quizData.selectedQuestions.length > 0 &&
+      quizData.questionTopicId
+    ) {
+      const selectedIds = quizData.selectedQuestions.map((sq) => sq.toString());
+      quizData.questionTopicId.questions =
+        quizData.questionTopicId.questions.filter((q) =>
+          selectedIds.includes(q._id.toString()),
+        );
     }
 
     res.json({
       success: true,
-      data: quiz
+      data: quizData
     });
   } catch (error) {
     res.status(500).json({
@@ -108,10 +150,20 @@ export const updateQuiz = async (req, res) => {
     const { id } = req.params;
     const updateData = req.body;
 
-    if (updateData.questionTopicId) {
+    if (updateData.selectedQuestions || updateData.customQuestions) {
+      const selectedCount = updateData.selectedQuestions
+        ? updateData.selectedQuestions.length
+        : 0;
+      const customCount = updateData.customQuestions
+        ? updateData.customQuestions.length
+        : 0;
+      updateData.totalQuestions = selectedCount + customCount;
+    } else if (updateData.questionTopicId) {
       const topic = await QuestionTopic.findById(updateData.questionTopicId);
       if (topic) {
         updateData.totalQuestions = topic.questions.length;
+        // If topic changes but selectedQuestions not provided, default to all questions
+        updateData.selectedQuestions = topic.questions.map((q) => q._id);
       }
     }
 

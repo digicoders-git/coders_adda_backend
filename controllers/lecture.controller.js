@@ -89,15 +89,40 @@ export const createLecture = async (req, res) => {
   }
 };
 
-/* ================= GET ALL ================= */
+/* ================= GET ALL LECTURES (WITH FILTER & PAGINATION) ================= */
 export const getAllLectures = async (req, res) => {
   try {
-    const data = await Lecture.find()
+    const { search = "", page = 1, limit = 10, courseId = "" } = req.query;
+
+    const query = {};
+    if (search) {
+      query.title = { $regex: search, $options: "i" };
+    }
+    if (courseId) {
+      query.course = courseId;
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const data = await Lecture.find(query)
       .populate("course", "title")
       .populate("topic", "topic")
-      .sort({ srNo: 1 });
+      .sort({ srNo: 1 })
+      .skip(skip)
+      .limit(parseInt(limit));
 
-    return res.status(200).json({ success: true, data });
+    const total = await Lecture.countDocuments(query);
+
+    return res.status(200).json({
+      success: true,
+      data,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error", error: error.message });
   }

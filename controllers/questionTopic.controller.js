@@ -1,4 +1,5 @@
 import QuestionTopic from "../models/questionTopic.model.js";
+import mongoose from "mongoose";
 
 export const createQuestionTopic = async (req, res) => {
   try {
@@ -100,6 +101,80 @@ export const deleteQuestionTopic = async (req, res) => {
     const topic = await QuestionTopic.findByIdAndDelete(req.params.id);
     if (!topic) return res.status(404).json({ success: false, message: "Topic not found" });
     res.json({ success: true, message: "Topic deleted" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Server error", error: error.message });
+  }
+};
+
+/* ================= QUESTION SPECIFIC CRUD ================= */
+
+export const addQuestion = async (req, res) => {
+  try {
+    const { id } = req.params; // Topic ID
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid Topic ID" });
+    }
+
+    const topic = await QuestionTopic.findByIdAndUpdate(
+      id,
+      { $push: { questions: req.body } },
+      { new: true }
+    );
+    if (!topic) return res.status(404).json({ success: false, message: "Topic not found" });
+    res.status(201).json({ success: true, message: "Question added", data: topic.questions[topic.questions.length - 1] });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Server error", error: error.message });
+  }
+};
+
+export const updateQuestion = async (req, res) => {
+  try {
+    const { topicId, questionId } = req.params;
+    const { question, options, correctAnswer } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(topicId) || !mongoose.Types.ObjectId.isValid(questionId)) {
+      return res.status(400).json({ success: false, message: "Invalid Topic or Question ID" });
+    }
+
+    const topic = await QuestionTopic.findOneAndUpdate(
+      { _id: topicId, "questions._id": questionId },
+      {
+        $set: {
+          "questions.$.question": question,
+          "questions.$.options": options,
+          "questions.$.correctAnswer": correctAnswer
+        }
+      },
+      { new: true }
+    );
+
+    if (!topic) return res.status(404).json({ success: false, message: "Question or Topic not found" });
+
+    // Find the updated question in the topic's questions array
+    const updatedQuestion = topic.questions.id(questionId);
+
+    res.json({ success: true, message: "Question updated", data: updatedQuestion });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Server error", error: error.message });
+  }
+};
+
+export const deleteQuestion = async (req, res) => {
+  try {
+    const { topicId, questionId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(topicId) || !mongoose.Types.ObjectId.isValid(questionId)) {
+      return res.status(400).json({ success: false, message: "Invalid Topic or Question ID" });
+    }
+
+    const topic = await QuestionTopic.findByIdAndUpdate(
+      topicId,
+      { $pull: { questions: { _id: questionId } } },
+      { new: true }
+    );
+    if (!topic) return res.status(404).json({ success: false, message: "Topic not found" });
+    res.json({ success: true, message: "Question deleted" });
   } catch (error) {
     res.status(500).json({ success: false, message: "Server error", error: error.message });
   }

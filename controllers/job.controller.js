@@ -254,15 +254,15 @@ export const getAllJobs = async (req, res) => {
       filter.location = { $regex: location, $options: "i" };
     }
 
-    if (workType) {
+    if (workType && workType !== "All") {
       filter.workType = workType;
     }
 
-    if (experience) {
+    if (experience && experience !== "All") {
       filter.requiredExperience = experience;
     }
 
-    if (status) {
+    if (status && status !== "All") {
       filter.jobStatus = status;
     }
 

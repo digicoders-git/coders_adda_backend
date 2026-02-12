@@ -51,8 +51,22 @@ export const getAllEbookEnrollments = async (req, res) => {
     const { search, categoryId, priceType } = req.query;
 
     let query = {};
-    if (search) query.title = { $regex: search, $options: "i" };
-    if (categoryId && categoryId !== "all") query.category = categoryId;
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { authorName: { $regex: search, $options: "i" } }
+      ];
+    }
+
+    if (categoryId && categoryId !== "all") {
+      try {
+        query.category = new mongoose.Types.ObjectId(categoryId);
+      } catch (err) {
+        // If it's not a valid ObjectId, skip filtering by category
+        console.error("Invalid categoryId:", categoryId);
+      }
+    }
+
     if (priceType && priceType !== "all") query.priceType = priceType;
 
     const ebooks = await Ebook.find(query).populate("category", "name").lean();

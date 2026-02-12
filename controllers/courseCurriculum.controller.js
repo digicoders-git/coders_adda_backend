@@ -34,15 +34,38 @@ export const createTopic = async (req, res) => {
   }
 };
 
-/* ================= GET ALL TOPICS (OPTIONAL) ================= */
+/* ================= GET ALL TOPICS (WITH FILTER & PAGINATION) ================= */
 export const getAllTopics = async (req, res) => {
   try {
-    const data = await CourseCurriculum.find()
-      .populate("course", "title");
+    const { search = "", page = 1, limit = 10, courseId = "" } = req.query;
+
+    const query = {};
+    if (search) {
+      query.topic = { $regex: search, $options: "i" };
+    }
+    if (courseId) {
+      query.course = courseId;
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const data = await CourseCurriculum.find(query)
+      .populate("course", "title")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const total = await CourseCurriculum.countDocuments(query);
 
     return res.status(200).json({
       success: true,
-      data
+      data,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(total / limit)
+      }
     });
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error", error: error.message });

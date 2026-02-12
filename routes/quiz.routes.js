@@ -13,7 +13,10 @@ import {
   getQuestionTopicById,
   updateQuestionTopic,
   deleteQuestionTopic,
-  toggleTopicStatus
+  toggleTopicStatus,
+  addQuestion,
+  updateQuestion,
+  deleteQuestion
 } from "../controllers/questionTopic.controller.js";
 import {
   createAttempt,
@@ -55,6 +58,11 @@ router.get("/topic/get/:id", verifyAdminToken, getQuestionTopicById);
 router.put("/topic/update/:id", verifyAdminToken, updateQuestionTopic);
 router.delete("/topic/delete/:id", verifyAdminToken, deleteQuestionTopic);
 router.patch("/topic/toggle-status/:id", verifyAdminToken, toggleTopicStatus);
+
+// Individual Question CRUD within Topic
+router.post("/topic/:id/question/add", verifyAdminToken, addQuestion);
+router.put("/topic/:topicId/question/update/:questionId", verifyAdminToken, updateQuestion);
+router.delete("/topic/:topicId/question/delete/:questionId", verifyAdminToken, deleteQuestion);
 
 /* Attempt Routes */
 router.post("/attempt/submit", userAuth, createAttempt);

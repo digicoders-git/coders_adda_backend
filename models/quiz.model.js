@@ -21,6 +21,23 @@ const quizSchema = new mongoose.Schema(
       ref: "QuestionTopic",
       required: true
     },
+    selectedQuestions: [{ type: mongoose.Schema.Types.ObjectId }],
+    customQuestions: [
+      {
+        question: { type: String, required: true },
+        options: {
+          a: { type: String, required: true },
+          b: { type: String, required: true },
+          c: { type: String, required: true },
+          d: { type: String, required: true }
+        },
+        correctAnswer: {
+          type: String,
+          required: true,
+          enum: ["a", "b", "c", "d"]
+        }
+      }
+    ],
     totalQuestions: { type: Number, default: 0 },
     attempts: [
       {
