@@ -14,8 +14,49 @@ import path from "path";
 // Fixed OTP
 const FIXED_OTP = "123456";
 
-// Mobile OTP Login
-export const mobileLogin = async (req, res) => {
+
+// Request Mobile OTP
+export const requestMobileOtp = async (req, res) => {
+  try {
+    const { mobile, referralCode } = req.body;
+
+    // Validation
+    if (!mobile) {
+      return res.status(400).json({
+        success: false,
+        message: "Mobile number is required"
+      });
+    }
+
+    // Referral Code check
+    if (referralCode) {
+      const referrer = await User.findOne({ referralCode, isAmbassador: true });
+      if (!referrer) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid Referral Code"
+        });
+      }
+    }
+
+    // Success response
+    return res.status(200).json({
+      success: true,
+      message: "OTP sent successfully. Use 123456"
+    });
+
+  } catch (error) {
+    console.error("Request OTP error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+};
+
+
+// Verify Mobile OTP & Login
+export const verifyMobileOtp = async (req, res) => {
   try {
     const { mobile, otp, referralCode } = req.body;
 
