@@ -165,13 +165,25 @@ export const getAllCourses = async (req, res) => {
 
     const skip = (page - 1) * limit;
 
-    const data = (await Course.find(filter)
+    const User = mongoose.model("User");
+    const rawCourses = await Course.find(filter)
       .populate("instructor", "fullName role profilePicture")
       .populate("category", "name")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(Number(limit))
-      .lean()).map(c => ({ ...c, duration: c.duration || "" }));
+      .lean();
+
+    const data = await Promise.all(
+      rawCourses.map(async (c) => {
+        const studentCount = await User.countDocuments({ purchaseCourses: c._id });
+        return {
+          ...c,
+          duration: c.duration || "",
+          totalStudents: studentCount || 0
+        };
+      })
+    );
 
     const total = await Course.countDocuments(filter);
 
@@ -287,11 +299,14 @@ export const getSingleCourse = async (req, res) => {
       };
     });
 
+    const studentCount = await mongoose.model("User").countDocuments({ purchaseCourses: id });
+
     return res.status(200).json({
       success: true,
       data: {
         ...course.toObject(),
-        curriculum: structuredCurriculum
+        curriculum: structuredCurriculum,
+        totalStudents: studentCount || 0
       }
     });
 
@@ -539,11 +554,21 @@ export const getInstructorCourses = async (req, res) => {
       ]
     };
 
-    const courses = await Course.find(query)
+    const rawCourses = await Course.find(query)
       .populate("category", "name")
       .sort({ createdAt: -1 })
       .lean();
 
+    const User = mongoose.model("User");
+    const courses = await Promise.all(
+      rawCourses.map(async (c) => {
+        const studentCount = await User.countDocuments({ purchaseCourses: c._id });
+        return {
+          ...c,
+          totalStudents: studentCount || 0
+        };
+      })
+    );
 
     return res.status(200).json({
       success: true,
