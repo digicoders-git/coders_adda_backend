@@ -338,3 +338,83 @@ export const payWithWallet = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+/* ===============================
+   5️⃣ WALLET TOP-UP (DEPOSIT)
+================================ */
+export const topupWallet = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { amount } = req.body;
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ success: false, message: "Invalid amount" });
+    }
+
+    const user = await User.findById(userId);
+    user.walletBalance = (user.walletBalance || 0) + Number(amount);
+    await user.save();
+
+    await Payment.create({
+      user: userId,
+      itemType: "wallet_deposit",
+      itemId: userId,
+      amount: Number(amount),
+      paymentMethod: "razorpay_simulated",
+      status: "success"
+    });
+
+    return res.json({
+      success: true,
+      message: `Successfully topped up ₹${amount}`,
+      balance: user.walletBalance
+    });
+  } catch (err) {
+    console.error("Wallet topup error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/* ===============================
+   6️⃣ WALLET WITHDRAWAL
+================================ */
+export const withdrawWallet = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { amount, upiId } = req.body;
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ success: false, message: "Invalid amount" });
+    }
+    if (!upiId) {
+      return res.status(400).json({ success: false, message: "UPI ID is required" });
+    }
+
+    const user = await User.findById(userId);
+    if (user.walletBalance < amount) {
+      return res.status(400).json({ success: false, message: "Insufficient wallet balance" });
+    }
+
+    user.walletBalance -= Number(amount);
+    await user.save();
+
+    await Payment.create({
+      user: userId,
+      itemType: "wallet_withdrawal",
+      itemId: userId,
+      amount: Number(amount),
+      paymentMethod: "upi",
+      status: "success",
+      notes: `Withdrawn to ${upiId}`
+    });
+
+    return res.json({
+      success: true,
+      message: `Successfully requested withdrawal of ₹${amount} to ${upiId}`,
+      balance: user.walletBalance
+    });
+  } catch (err) {
+    console.error("Wallet withdrawal error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
