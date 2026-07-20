@@ -132,9 +132,26 @@ export const getMyAttempts = async (req, res) => {
       })
       .sort({ createdAt: -1 });
 
+    const certificates = await QuizCertificate.find({ user: studentId });
+    const certMap = {};
+    certificates.forEach(c => {
+      if (c.quiz) {
+        certMap[c.quiz.toString()] = c.certificateUrl;
+      }
+    });
+
+    const data = attempts.map(attempt => {
+      const attemptObj = attempt.toObject();
+      const quizIdStr = attempt.quizId?._id?.toString();
+      return {
+        ...attemptObj,
+        certificateUrl: quizIdStr ? certMap[quizIdStr] : null
+      };
+    });
+
     res.json({
       success: true,
-      data: attempts
+      data
     });
   } catch (error) {
     res.status(500).json({
@@ -152,13 +169,21 @@ export const getAttemptsByQuiz = async (req, res) => {
 
     // Fetch all certificates for this quiz
     const certificates = await QuizCertificate.find({ quiz: quizId });
-    const certifiedStudents = new Set(certificates.map(c => c.user.toString()));
+    const certifiedStudents = new Set(certificates.map(c => c.user ? c.user.toString() : ""));
+    const certMap = {};
+    certificates.forEach(c => {
+      if (c.user) {
+        certMap[c.user.toString()] = c.certificateUrl;
+      }
+    });
 
     const data = attempts.map(attempt => {
       const attemptObj = attempt.toObject();
+      const studentIdStr = attempt.studentId?._id?.toString();
       return {
         ...attemptObj,
-        certificateGenerated: certifiedStudents.has(attempt.studentId?._id?.toString())
+        certificateGenerated: studentIdStr ? certifiedStudents.has(studentIdStr) : false,
+        certificateUrl: studentIdStr ? certMap[studentIdStr] : null
       };
     });
 
