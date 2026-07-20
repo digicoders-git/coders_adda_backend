@@ -63,13 +63,16 @@ export const toggleTopicStatus = async (req, res) => {
     const topic = await QuestionTopic.findById(req.params.id);
     if (!topic) return res.status(404).json({ success: false, message: "Topic not found" });
 
-    topic.status = !topic.status;
-    await topic.save();
+    const updatedTopic = await QuestionTopic.findByIdAndUpdate(
+      req.params.id,
+      { $set: { status: !topic.status } },
+      { new: true, runValidators: false }
+    );
 
     res.json({
       success: true,
-      message: `Topic status updated to ${topic.status ? "Active" : "Disabled"}`,
-      data: topic
+      message: `Topic status updated to ${updatedTopic.status ? "Active" : "Disabled"}`,
+      data: updatedTopic
     });
   } catch (error) {
     res.status(500).json({ success: false, message: "Server error", error: error.message });
