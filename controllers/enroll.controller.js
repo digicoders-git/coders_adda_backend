@@ -15,6 +15,20 @@ export const freeEnroll = async (req, res) => {
 
     const user = await User.findById(userId);
 
+    // Already purchased/unlocked check
+    if (itemType === "course" && user.purchaseCourses.includes(itemId)) {
+      return res.status(400).json({ message: "You are already enrolled in this course." });
+    }
+    if (itemType === "ebook" && user.purchaseEbooks.includes(itemId)) {
+      return res.status(400).json({ message: "You already own this E-Book." });
+    }
+    if ((itemType === "job" || itemType === "jobV2" || itemType === "jobV3") && user.purchaseJobs.includes(itemId)) {
+      return res.status(400).json({ message: "You have already unlocked this job." });
+    }
+    if (itemType === "subscription" && user.purchaseSubscriptions.some(sub => sub.subscription.toString() === itemId.toString())) {
+      return res.status(400).json({ message: "You already have this subscription active." });
+    }
+
     // V3 Logic: Allow paid jobs to be enrolled for free if user has unlocks left
     if (itemType === "jobV3" && item.priceType === "paid") {
       if (user.freeJobUnlocksUsed >= 3) {

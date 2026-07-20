@@ -93,7 +93,9 @@ export const createOrder = async (req, res) => {
     });
   } catch (err) {
     console.error("Create order error:", err);
-    return res.status(500).json({ message: "Order creation failed" });
+    const statusCode = err.statusCode || 500;
+    const message = err.error?.description || err.message || "Order creation failed";
+    return res.status(statusCode).json({ success: false, message });
   }
 };
 
@@ -270,6 +272,20 @@ export const payWithWallet = async (req, res) => {
     }
 
     const user = await User.findById(userId);
+
+    // Already purchased/unlocked check
+    if (itemType === "course" && user.purchaseCourses.includes(itemId)) {
+      return res.status(400).json({ success: false, message: "You are already enrolled in this course." });
+    }
+    if (itemType === "ebook" && user.purchaseEbooks.includes(itemId)) {
+      return res.status(400).json({ success: false, message: "You already own this E-Book." });
+    }
+    if ((itemType === "job" || itemType === "jobV2" || itemType === "jobV3") && user.purchaseJobs.includes(itemId)) {
+      return res.status(400).json({ success: false, message: "You have already unlocked this job." });
+    }
+    if (itemType === "subscription" && user.purchaseSubscriptions.some(sub => sub.subscription.toString() === itemId.toString())) {
+      return res.status(400).json({ success: false, message: "You already have this subscription active." });
+    }
 
     // 🔥 Check Balance
     if (user.walletBalance < finalAmount) {
