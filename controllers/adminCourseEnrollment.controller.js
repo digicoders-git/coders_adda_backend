@@ -36,14 +36,19 @@ export const getCourseEnrollmentStats = async (req, res) => {
       purchaseCourses: { $exists: true, $not: { $size: 0 } }
     });
 
-    // 2. Total Courses Sold
-    const payments = await Payment.find({ itemType: "course", status: "success" });
-    const totalCoursesSold = payments.length;
+    // Get all enrollments by unwinding purchaseCourses
+    const enrollments = await User.aggregate([
+      { $unwind: "$purchaseCourses" },
+      { $project: { user: "$_id", course: "$purchaseCourses" } }
+    ]);
 
-    // 3. Most Popular Course
-    const courseAggregation = await Payment.aggregate([
-      { $match: { itemType: "course", status: "success" } },
-      { $group: { _id: "$itemId", count: { $sum: 1 } } },
+    // 2. Total Courses Enrolled/Sold (including free ones)
+    const totalCoursesSold = enrollments.length;
+
+    // 3. Most Popular Course (Aggregated from User enrollments)
+    const courseAggregation = await User.aggregate([
+      { $unwind: "$purchaseCourses" },
+      { $group: { _id: "$purchaseCourses", count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 1 }
     ]);
@@ -55,10 +60,6 @@ export const getCourseEnrollmentStats = async (req, res) => {
     }
 
     // 4. Proper Avg Completion Rate Calculation (Watched Time Base)
-    const enrollments = await User.aggregate([
-      { $unwind: "$purchaseCourses" },
-      { $project: { user: "$_id", course: "$purchaseCourses" } }
-    ]);
 
     let totalCompletion = 0;
     if (enrollments.length > 0) {
