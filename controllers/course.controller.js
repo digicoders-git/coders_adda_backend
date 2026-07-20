@@ -180,7 +180,8 @@ export const getAllCourses = async (req, res) => {
         return {
           ...c,
           duration: c.duration || "",
-          totalStudents: studentCount || 0
+          totalStudents: studentCount || 0,
+          studentsCount: studentCount || 0
         };
       })
     );
@@ -306,7 +307,8 @@ export const getSingleCourse = async (req, res) => {
       data: {
         ...course.toObject(),
         curriculum: structuredCurriculum,
-        totalStudents: studentCount || 0
+        totalStudents: studentCount || 0,
+        studentsCount: studentCount || 0
       }
     });
 
@@ -565,7 +567,8 @@ export const getInstructorCourses = async (req, res) => {
         const studentCount = await User.countDocuments({ purchaseCourses: c._id });
         return {
           ...c,
-          totalStudents: studentCount || 0
+          totalStudents: studentCount || 0,
+          studentsCount: studentCount || 0
         };
       })
     );
