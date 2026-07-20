@@ -80,17 +80,16 @@ export const createAttempt = async (req, res) => {
     let certificateIssued = false;
     let certificateDetails = null;
 
-    if (quiz.certificateTemplate) {
-      const template = await QuizCertificateTemplate.findById(quiz.certificateTemplate);
-      if (template && template.status) {
-        // You can add passing criteria here, e.g., marks >= totalMarks * 0.4
-        // For now, any attempt generates a certificate if mark > 0
-        if (marks > 0) {
-          const certificate = await generateQuizCertificate(studentId, quizId, template);
-          if (certificate) {
-            certificateIssued = true;
-            certificateDetails = certificate;
-          }
+    const template = await QuizCertificateTemplate.findOne({ quiz: quizId });
+    if (template && template.status) {
+      // Generate certificate if marks > 0 (passing score)
+      if (marks > 0) {
+        const certificate = await generateQuizCertificate(studentId, quizId, template, {
+          totalScore: `${marks} / ${totalMarks}`,
+        });
+        if (certificate) {
+          certificateIssued = true;
+          certificateDetails = certificate;
         }
       }
     }
@@ -140,14 +139,30 @@ export const getMyAttempts = async (req, res) => {
       }
     });
 
-    const data = attempts.map(attempt => {
+    const data = await Promise.all(attempts.map(async (attempt) => {
       const attemptObj = attempt.toObject();
       const quizIdStr = attempt.quizId?._id?.toString();
+      
+      let certificateUrl = quizIdStr ? certMap[quizIdStr] : null;
+
+      // Lazy certificate generation if passed (marks > 0) but no certificate exists
+      if (!certificateUrl && attempt.marks > 0 && quizIdStr) {
+        const template = await QuizCertificateTemplate.findOne({ quiz: quizIdStr });
+        if (template && template.status) {
+          const newCert = await generateQuizCertificate(studentId, quizIdStr, template, {
+            totalScore: `${attempt.marks} / ${attempt.totalMarks}`,
+          });
+          if (newCert) {
+            certificateUrl = newCert.certificateUrl;
+          }
+        }
+      }
+
       return {
         ...attemptObj,
-        certificateUrl: quizIdStr ? certMap[quizIdStr] : null
+        certificateUrl
       };
-    });
+    }));
 
     res.json({
       success: true,
@@ -177,15 +192,33 @@ export const getAttemptsByQuiz = async (req, res) => {
       }
     });
 
-    const data = attempts.map(attempt => {
+    const data = await Promise.all(attempts.map(async (attempt) => {
       const attemptObj = attempt.toObject();
       const studentIdStr = attempt.studentId?._id?.toString();
+      
+      let certificateUrl = studentIdStr ? certMap[studentIdStr] : null;
+      let certificateGenerated = studentIdStr ? certifiedStudents.has(studentIdStr) : false;
+
+      // Lazy certificate generation if student passed (marks > 0) but no certificate exists
+      if (!certificateUrl && attempt.marks > 0 && studentIdStr) {
+        const template = await QuizCertificateTemplate.findOne({ quiz: quizId });
+        if (template && template.status) {
+          const newCert = await generateQuizCertificate(studentIdStr, quizId, template, {
+            totalScore: `${attempt.marks} / ${attempt.totalMarks}`,
+          });
+          if (newCert) {
+            certificateUrl = newCert.certificateUrl;
+            certificateGenerated = true;
+          }
+        }
+      }
+
       return {
         ...attemptObj,
-        certificateGenerated: studentIdStr ? certifiedStudents.has(studentIdStr) : false,
-        certificateUrl: studentIdStr ? certMap[studentIdStr] : null
+        certificateGenerated,
+        certificateUrl
       };
-    });
+    }));
 
     res.json({
       success: true,
