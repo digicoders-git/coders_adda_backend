@@ -78,6 +78,7 @@ subDirs.forEach(dir => {
 });
 
 app.use('/uploads', (req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
   res.header("Cross-Origin-Resource-Policy", "cross-origin");
   next();
 }, express.static(uploadDir));
