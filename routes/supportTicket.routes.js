@@ -4,14 +4,16 @@ import {
   getAllSupportTickets,
   updateSupportTicketStatus,
   deleteSupportTicket,
+  getMySupportTickets,
 } from '../controllers/supportTicket.controller.js';
 import optionalUserAuth from '../middleware/optionalUserAuth.js';
 import verifyAdminToken from '../middleware/verifyAdminToken.js';
 
 const supportTicketRouter = express.Router();
 
-// Public / Mobile User Route
+// Public / Mobile User Routes
 supportTicketRouter.post('/create', optionalUserAuth, createSupportTicket);
+supportTicketRouter.get('/my-tickets', optionalUserAuth, getMySupportTickets);
 
 // Admin Routes
 supportTicketRouter.get('/admin/all', verifyAdminToken, getAllSupportTickets);

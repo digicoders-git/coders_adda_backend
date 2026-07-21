@@ -156,3 +156,37 @@ export const deleteSupportTicket = async (req, res) => {
     });
   }
 };
+
+// Get student's own support tickets (Mobile App)
+export const getMySupportTickets = async (req, res) => {
+  try {
+    const userId = req.user ? req.user._id : null;
+    const { email } = req.query;
+
+    let query = {};
+    if (userId) {
+      query = { $or: [{ userId }, { email: req.user.email }] };
+    } else if (email) {
+      query = { email };
+    } else {
+      return res.status(200).json({
+        success: true,
+        data: [],
+      });
+    }
+
+    const tickets = await SupportTicket.find(query).sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: tickets,
+    });
+  } catch (error) {
+    console.error('Error fetching my support tickets:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error fetching my support tickets.',
+      error: error.message,
+    });
+  }
+};
