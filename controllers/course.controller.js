@@ -23,6 +23,7 @@ export const createCourse = async (req, res) => {
       priceType,
       price,
       badge,
+      displayPlatform,
       duration,
       isActive
 
@@ -88,6 +89,7 @@ export const createCourse = async (req, res) => {
       priceType,
       price: priceType === "free" ? 0 : (Number(price) || 0),
       badge,
+      displayPlatform: displayPlatform || "both",
       duration: req.body.duration || duration,
 
       whatYouWillLearn: safeJsonParse(whatYouWillLearn),
@@ -128,11 +130,22 @@ export const getAllCourses = async (req, res) => {
       isActive,
       priceType,   // ✅ new
       badge,       // ✅ new
+      displayPlatform,
+      targetPlatform, // 'website' or 'app'
       page = 1,
       limit = 10
     } = req.query;
 
     let filter = {};
+
+    // 🎯 Filter by displayPlatform / targetPlatform
+    if (targetPlatform === "website") {
+      filter.displayPlatform = { $in: ["both", "website"] };
+    } else if (targetPlatform === "app") {
+      filter.displayPlatform = { $in: ["both", "app"] };
+    } else if (displayPlatform) {
+      filter.displayPlatform = displayPlatform;
+    }
 
     // 🔍 Global Search across Course, Instructor, and Category
     if (search) {
@@ -358,13 +371,13 @@ export const updateCourse = async (req, res) => {
       priceType,
       price,
       badge,
+      displayPlatform,
       duration,
       certificateTemplate
     } = req.body;
 
-
-
     if (title !== undefined) course.title = title;
+    if (displayPlatform !== undefined) course.displayPlatform = displayPlatform;
     if (instructor !== undefined && instructor !== null) {
       const instructorId = (instructor && typeof instructor === "object") ? instructor._id : instructor;
       if (!mongoose.Types.ObjectId.isValid(instructorId)) {

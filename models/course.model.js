@@ -110,6 +110,12 @@ const courseSchema = new mongoose.Schema({
     default: "normal"
   },
 
+  // ================= DISPLAY PLATFORM =================
+  displayPlatform: {
+    type: String,
+    enum: ["both", "app", "website", "none"],
+    default: "both"
+  },
 
   isActive: {
     type: Boolean,
