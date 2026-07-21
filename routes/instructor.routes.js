@@ -9,9 +9,9 @@ import {
   getInstructorProfile,
   getInstructorDashboardStats
 } from "../controllers/instructor.controller.js";
+import { getCourseStudents } from "../controllers/adminCourseEnrollment.controller.js";
 import verifyInstructorToken from "../middleware/verifyInstructorToken.js";
 import upload from "../middleware/multer.js";
-
 
 const instructorRoute = express.Router();
 
@@ -23,5 +23,6 @@ instructorRoute.put("/update/:id", upload.single("profilePicture"), updateInstru
 instructorRoute.delete("/delete/:id", deleteInstructor);
 instructorRoute.get("/profile", verifyInstructorToken, getInstructorProfile);
 instructorRoute.get("/stats", verifyInstructorToken, getInstructorDashboardStats);
+instructorRoute.get("/course/:courseId/students", verifyInstructorToken, getCourseStudents);
 
 export default instructorRoute;

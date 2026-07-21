@@ -264,7 +264,7 @@ export const getInstructorProfile = async (req, res) => {
     const instructor = await Instructor.findById(instructorId)
       .populate({
         path: "courseEarnings.course",
-        select: "title thumbnail price priceType"
+        select: "title thumbnail price priceType priceForInstructor"
       })
       .select("-password");
 
