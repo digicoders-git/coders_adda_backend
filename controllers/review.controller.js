@@ -5,7 +5,7 @@ import path from "path";
 /* ================= CREATE ================= */
 export const createReview = async (req, res) => {
   try {
-    const { name, role, rating, description, status } = req.body;
+    const { name, role, rating, description, displayPlatform, status } = req.body;
 
     let image = {};
     if (req.file) {
@@ -17,17 +17,18 @@ export const createReview = async (req, res) => {
     }
 
     const review = await Review.create({
-      name,
-      role,
-      rating,
+      name: name || "Anonymous Student",
+      role: role || "Student",
+      rating: Number(rating) || 5,
       description,
       image,
-      isActive: status === "Active"
+      displayPlatform: displayPlatform || "both",
+      isActive: status === "Active" || status === true || status === "true" ? true : false
     });
 
     return res.status(201).json({
       success: true,
-      message: "Review created successfully",
+      message: "Review submitted successfully! It will be visible after admin approval.",
       review
     });
   } catch (error) {
@@ -42,7 +43,7 @@ export const createReview = async (req, res) => {
 /* ================= GET ALL ================= */
 export const getAllReviews = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search } = req.query;
+    const { page = 1, limit = 10, search, isActive, displayPlatform, targetPlatform } = req.query;
     let filter = {};
 
     if (search) {
@@ -50,6 +51,18 @@ export const getAllReviews = async (req, res) => {
         { name: { $regex: search, $options: "i" } },
         { role: { $regex: search, $options: "i" } }
       ];
+    }
+
+    if (targetPlatform === "website") {
+      filter.displayPlatform = { $in: ["both", "website"] };
+    } else if (targetPlatform === "app") {
+      filter.displayPlatform = { $in: ["both", "app"] };
+    } else if (displayPlatform) {
+      filter.displayPlatform = displayPlatform;
+    }
+
+    if (isActive !== undefined) {
+      filter.isActive = isActive === "true" || isActive === true;
     }
 
     const reviews = await Review.find(filter)

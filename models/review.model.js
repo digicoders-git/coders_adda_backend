@@ -31,9 +31,14 @@ const reviewSchema = new mongoose.Schema(
         type: String,
       },
     },
+    displayPlatform: {
+      type: String,
+      enum: ["both", "app", "website", "none"],
+      default: "both",
+    },
     isActive: {
       type: Boolean,
-      default: true,
+      default: false,
     },
   },
   { timestamps: true }
