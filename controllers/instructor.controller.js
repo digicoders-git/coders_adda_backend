@@ -284,22 +284,32 @@ export const getInstructorProfile = async (req, res) => {
 /* ================= GET DASHBOARD STATS ================= */
 export const getInstructorDashboardStats = async (req, res) => {
   try {
-    const instructorId = new mongoose.Types.ObjectId(req.instructor.id);
+    const rawInstructorId = req.instructor.id;
+    const instructorObjectId = mongoose.Types.ObjectId.isValid(rawInstructorId)
+      ? new mongoose.Types.ObjectId(rawInstructorId)
+      : null;
 
     // 1. Get instructor profile for basic stats
-    const instructor = await Instructor.findById(instructorId).populate("courseEarnings.course");
+    const instructor = await Instructor.findById(rawInstructorId).populate("courseEarnings.course");
     if (!instructor) return res.status(404).json({ message: "Instructor not found" });
 
+    const courseQuery = {
+      $or: [
+        { instructor: rawInstructorId },
+        ...(instructorObjectId ? [{ instructor: instructorObjectId }] : [])
+      ]
+    };
+
     // 2. Fundamental Stats
-    const totalCourses = await Course.countDocuments({ instructor: instructorId });
-    const activeCourses = await Course.countDocuments({ instructor: instructorId, isActive: true });
+    const totalCourses = await Course.countDocuments(courseQuery);
+    const activeCourses = await Course.countDocuments({ ...courseQuery, isActive: true });
 
     // Calculate total students (sum of salesCount across all assigned courses)
     const totalStudents = instructor.courseEarnings.reduce((acc, curr) => acc + (curr.salesCount || 0), 0);
     const totalEarnings = instructor.totalEarnings || 0;
 
     // 3. Sales Trend (Last 6 Months)
-    const instructorCourses = await Course.find({ instructor: instructorId }).select("_id");
+    const instructorCourses = await Course.find(courseQuery).select("_id");
     const courseIds = instructorCourses.map(c => c._id);
 
     const sixMonthsAgo = new Date();
