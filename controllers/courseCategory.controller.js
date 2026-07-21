@@ -140,7 +140,7 @@ export const getSingleCategory = async (req, res) => {
 export const updateCategory = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, isActive, description } = req.body;
+    const { name, isActive, displayPlatform, description } = req.body;
 
     const category = await CourseCategory.findById(id);
     if (!category) {
@@ -148,7 +148,10 @@ export const updateCategory = async (req, res) => {
     }
 
     if (name !== undefined) category.name = name;
-    if (isActive !== undefined) category.isActive = isActive;
+    if (displayPlatform !== undefined) category.displayPlatform = displayPlatform;
+    if (isActive !== undefined) {
+      category.isActive = isActive === true || isActive === "true";
+    }
     if (description !== undefined) category.description = description;
 
     // Handle Image Update
