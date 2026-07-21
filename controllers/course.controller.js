@@ -565,8 +565,20 @@ export const getInstructorCourses = async (req, res) => {
     const courses = await Promise.all(
       rawCourses.map(async (c) => {
         const studentCount = await User.countDocuments({ purchaseCourses: c._id });
+
+        let displayDuration = c.duration;
+        if (!displayDuration || displayDuration.trim() === "" || displayDuration.toUpperCase() === "N/A") {
+          const lectures = await Lecture.find({ course: c._id }).select("duration");
+          if (lectures.length > 0) {
+            displayDuration = `${lectures.length} Lectures`;
+          } else {
+            displayDuration = "Self-Paced";
+          }
+        }
+
         return {
           ...c,
+          duration: displayDuration,
           totalStudents: studentCount || 0,
           studentsCount: studentCount || 0
         };
