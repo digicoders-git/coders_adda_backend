@@ -27,6 +27,11 @@ CourseCategoryRoutes.put(
   upload.single("image"),
   updateCategory
 );
+CourseCategoryRoutes.patch(
+  "/update/:id",
+  upload.single("image"),
+  updateCategory
+);
 CourseCategoryRoutes.delete("/delete/:id", deleteCategory);
 
 export default CourseCategoryRoutes;
