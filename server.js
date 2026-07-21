@@ -121,6 +121,7 @@ app.use('/certificate', certificateRoute)
 app.use('/coupon', couponRoutes)
 app.use('/blog', blogRoutes)
 app.use('/review', reviewRoutes)
+app.use('/reviews', reviewRoutes)
 app.use('/support-ticket', supportTicketRouter)
 
 
