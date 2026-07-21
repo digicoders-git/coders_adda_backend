@@ -34,6 +34,10 @@ const storage = multer.diskStorage({
       } else if (req.originalUrl.includes("blog")) {
         dest = path.resolve(dest, "blogs");
       }
+    } else if (file.fieldname === "icon") {
+      if (req.originalUrl.includes("service")) {
+        dest = path.resolve(dest, "services");
+      }
     } else if (file.fieldname === "certificateImage") {
       dest = path.resolve(dest, "certificates/templates");
     } else if (file.fieldname === "profilePicture") {

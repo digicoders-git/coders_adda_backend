@@ -73,7 +73,7 @@ const uploadDir = path.resolve(rootDir, "uploads");
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
-const subDirs = ["reviews", "blogs", "courses", "lectures", "users", "sliders", "certificates", "instructors"];
+const subDirs = ["reviews", "blogs", "courses", "lectures", "users", "sliders", "certificates", "instructors", "services"];
 subDirs.forEach(dir => {
   const fullPath = path.resolve(uploadDir, dir);
   if (!fs.existsSync(fullPath)) fs.mkdirSync(fullPath, { recursive: true });

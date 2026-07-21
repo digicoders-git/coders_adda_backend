@@ -12,6 +12,20 @@ const serviceSchema = new mongoose.Schema(
       required: true,
       trim: true
     },
+    category: {
+      type: String,
+      default: "",
+      trim: true
+    },
+    badge: {
+      type: String,
+      default: "",
+      trim: true
+    },
+    features: {
+      type: [String],
+      default: []
+    },
     icon: {
       url: { type: String, default: "" },
       localUrl: { type: String, default: "" },
