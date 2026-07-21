@@ -12,6 +12,7 @@ export const createSubscription = async (req, res) => {
       price,
       freeJobs,
       planStatus,
+      displayPlatform,
       planBenefits,
       includedCourses,
       includedEbooks
@@ -41,6 +42,7 @@ export const createSubscription = async (req, res) => {
       price: finalPrice,
       freeJobs,
       planStatus,
+      displayPlatform: displayPlatform || "both",
       planBenefits: Array.isArray(planBenefits)
         ? planBenefits
         : planBenefits
@@ -81,6 +83,7 @@ export const updateSubscription = async (req, res) => {
       price,
       freeJobs,
       planStatus,
+      displayPlatform,
       planBenefits,
       includedCourses,
       includedEbooks
@@ -91,6 +94,7 @@ export const updateSubscription = async (req, res) => {
     if (duration !== undefined) plan.duration = duration;
     if (freeJobs !== undefined) plan.freeJobs = freeJobs;
     if (planStatus !== undefined) plan.planStatus = planStatus;
+    if (displayPlatform !== undefined) plan.displayPlatform = displayPlatform;
 
     // Pricing logic
     if (planPricingType !== undefined) {
@@ -213,7 +217,7 @@ export const getAllSubscriptions = async (req, res) => {
     const limit = Number(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const { search, status } = req.query;
+    const { search, status, displayPlatform, targetPlatform } = req.query;
 
     let filter = {};
 
@@ -221,8 +225,16 @@ export const getAllSubscriptions = async (req, res) => {
       filter.planType = { $regex: search, $options: "i" };
     }
 
+    if (targetPlatform === "website") {
+      filter.displayPlatform = { $in: ["both", "website"] };
+    } else if (targetPlatform === "app") {
+      filter.displayPlatform = { $in: ["both", "app"] };
+    } else if (displayPlatform) {
+      filter.displayPlatform = displayPlatform;
+    }
+
     if (status !== undefined) {
-      filter.planStatus = status === "true";
+      filter.planStatus = status === "true" || status === true;
     }
 
     const total = await Subscription.countDocuments({ ...filter, isDeleted: { $ne: true } });

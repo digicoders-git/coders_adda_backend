@@ -57,6 +57,11 @@ const subscriptionSchema = new mongoose.Schema(
         ref: "Ebook"
       }
     ],
+    displayPlatform: {
+      type: String,
+      enum: ["both", "app", "website", "none"],
+      default: "both",
+    },
     isDeleted: {
       type: Boolean,
       default: false
