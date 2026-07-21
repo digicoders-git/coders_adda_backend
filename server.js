@@ -42,6 +42,7 @@ import certificateRoute from './routes/certificate.routes.js';
 import couponRoutes from './routes/coupon.routes.js';
 import blogRoutes from './routes/blog.routes.js';
 import reviewRoutes from './routes/review.routes.js';
+import supportTicketRouter from './routes/supportTicket.routes.js';
 import http from "http";
 import { initSocket } from "./config/socket.js";
 import "./cron/subscriptionExpiry.cron.js";
@@ -120,6 +121,7 @@ app.use('/certificate', certificateRoute)
 app.use('/coupon', couponRoutes)
 app.use('/blog', blogRoutes)
 app.use('/review', reviewRoutes)
+app.use('/support-ticket', supportTicketRouter)
 
 
 // 404 handler
