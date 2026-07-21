@@ -5,7 +5,7 @@ import cloudinary from "../config/cloudinary.js";
 /* ================= CREATE ================= */
 export const createCategory = async (req, res) => {
   try {
-    const { name, description } = req.body;
+    const { name, description, displayPlatform, status } = req.body;
     let image = {};
 
     if (!name) {
@@ -39,7 +39,9 @@ export const createCategory = async (req, res) => {
     const category = await CourseCategory.create({ 
       name, 
       description,
-      image 
+      image,
+      displayPlatform: displayPlatform || "both",
+      isActive: status === "Active" || status === true || status === "true" ? true : false
     });
 
     return res.status(201).json({
@@ -59,7 +61,7 @@ export const createCategory = async (req, res) => {
 /* ================= GET ALL ================= */
 export const getAllCategories = async (req, res) => {
   try {
-    const { search, isActive, page = 1, limit = 10 } = req.query;
+    const { search, isActive, displayPlatform, targetPlatform, page = 1, limit = 10 } = req.query;
 
     // Build filter object
     let filter = {};
@@ -69,9 +71,18 @@ export const getAllCategories = async (req, res) => {
       filter.name = { $regex: search, $options: "i" }; // case-insensitive
     }
 
+    // ✅ Filter by targetPlatform / displayPlatform
+    if (targetPlatform === "website") {
+      filter.displayPlatform = { $in: ["both", "website"] };
+    } else if (targetPlatform === "app") {
+      filter.displayPlatform = { $in: ["both", "app"] };
+    } else if (displayPlatform) {
+      filter.displayPlatform = displayPlatform;
+    }
+
     // ✅ Filter by active/inactive
     if (isActive !== undefined) {
-      filter.isActive = isActive === "true";
+      filter.isActive = isActive === "true" || isActive === true;
     }
 
     const skip = (page - 1) * limit;

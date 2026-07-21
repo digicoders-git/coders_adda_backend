@@ -7,7 +7,7 @@ import cloudinary from "../config/cloudinary.js";
 /* ================= CREATE ================= */
 export const createBlog = async (req, res) => {
   try {
-    const { title, description, status } = req.body;
+    const { title, description, displayPlatform, status } = req.body;
 
     let image = {};
     if (req.file) {
@@ -32,7 +32,8 @@ export const createBlog = async (req, res) => {
       title,
       description,
       image,
-      isActive: status === "Active"
+      displayPlatform: displayPlatform || "both",
+      isActive: status === "Active" || status === true || status === "true" ? true : false
     });
 
     return res.status(201).json({
@@ -52,11 +53,23 @@ export const createBlog = async (req, res) => {
 /* ================= GET ALL ================= */
 export const getAllBlogs = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search } = req.query;
+    const { page = 1, limit = 10, search, isActive, displayPlatform, targetPlatform } = req.query;
     let filter = {};
 
     if (search) {
       filter.title = { $regex: search, $options: "i" };
+    }
+
+    if (targetPlatform === "website") {
+      filter.displayPlatform = { $in: ["both", "website"] };
+    } else if (targetPlatform === "app") {
+      filter.displayPlatform = { $in: ["both", "app"] };
+    } else if (displayPlatform) {
+      filter.displayPlatform = displayPlatform;
+    }
+
+    if (isActive !== undefined) {
+      filter.isActive = isActive === "true" || isActive === true;
     }
 
     const blogs = await Blog.find(filter)

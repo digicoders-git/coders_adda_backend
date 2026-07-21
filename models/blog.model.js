@@ -23,9 +23,14 @@ const blogSchema = new mongoose.Schema(
       },
     },
 
+    displayPlatform: {
+      type: String,
+      enum: ["both", "app", "website", "none"],
+      default: "both",
+    },
     isActive: {
       type: Boolean,
-      default: true,
+      default: false,
     },
   },
   { timestamps: true }

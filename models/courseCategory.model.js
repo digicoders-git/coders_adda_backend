@@ -16,11 +16,16 @@ const courseCategorySchema = new mongoose.Schema({
     type: String,
     trim: true
   },
-  isActive:{
-    type:Boolean,
-    default:true
+  displayPlatform: {
+    type: String,
+    enum: ["both", "app", "website", "none"],
+    default: "both"
+  },
+  isActive: {
+    type: Boolean,
+    default: false
   }
-},{timestamps:true})
+}, { timestamps: true });
 
 const CourseCategory = mongoose.model('courseCategory',courseCategorySchema)
 export default CourseCategory
