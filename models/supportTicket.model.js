@@ -54,6 +54,11 @@ const supportTicketSchema = new mongoose.Schema(
     repliedAt: {
       type: Date,
     },
+    source: {
+      type: String,
+      enum: ['App', 'Website'],
+      default: 'App',
+    },
   },
   { timestamps: true }
 );

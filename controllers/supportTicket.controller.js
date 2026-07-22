@@ -4,7 +4,7 @@ import User from '../models/user.model.js';
 // Create a new support ticket (App user or guest)
 export const createSupportTicket = async (req, res) => {
   try {
-    const { name, email, mobile, category, subject, message } = req.body;
+    const { name, email, mobile, category, subject, message, source } = req.body;
 
     if (!subject || !message) {
       return res.status(400).json({
@@ -35,6 +35,7 @@ export const createSupportTicket = async (req, res) => {
       category: category || 'Other Query',
       subject,
       message,
+      source: source || 'App',
     });
 
     res.status(201).json({
