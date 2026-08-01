@@ -73,23 +73,36 @@ export const updateProgressREST = async (req, res) => {
     }).select("watchedSeconds");
 
     const watched = userProgressDocs.reduce((acc, doc) => acc + (doc.watchedSeconds || 0), 0);
-    const coursePercent = totalDuration > 0 ? (watched / totalDuration) * 100 : 0;
+    const coursePercent = totalDuration === 0 ? 0 : Math.min(100, Math.floor((watched / totalDuration) * 100));
+
+    console.log(`[REST] Progress: User ${userId} watched ${watched}/${totalDuration}s -> ${coursePercent}%`);
 
     let certificateIssued = false;
     let certificateUrl = null;
 
     if (coursePercent >= 90) {
+      console.log(`[REST] Threshold met. Checking certificate template...`);
       // Check if course has a template
       const courseData = await Course.findById(courseId).select("certificateTemplate");
       if (courseData?.certificateTemplate) {
         const template = await CertificateTemplate.findById(courseData.certificateTemplate);
         if (template) {
-          const certificate = await generateCertificate(userId, courseId, template);
-          if (certificate) {
-            certificateIssued = true;
-            certificateUrl = certificate.certificateUrl;
+          console.log(`[REST] Generating certificate...`);
+          try {
+            const certificate = await generateCertificate(userId, courseId, template);
+            if (certificate) {
+              certificateIssued = true;
+              certificateUrl = certificate.certificateUrl;
+              console.log(`[REST] Certificate generated successfully!`);
+            }
+          } catch(certError) {
+             console.error(`[REST] Certificate Generation Failed:`, certError);
           }
+        } else {
+          console.log(`[REST] Template not found in DB`);
         }
+      } else {
+        console.log(`[REST] Course has no template attached`);
       }
     }
 
@@ -101,7 +114,7 @@ export const updateProgressREST = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("❌ REST Progress update error:", error.message);
+    console.error("❌ REST Progress update error:", error);
     return res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
