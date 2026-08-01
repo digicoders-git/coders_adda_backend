@@ -2,6 +2,8 @@ import Lecture from "../models/lecture.model.js";
 import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
 
+import UserProgress from "../models/UserProgress.js";
+
 /* ================= CREATE LECTURE ================= */
 export const createLecture = async (req, res) => {
   try {
@@ -156,6 +158,19 @@ export const getLecturesByTopic = async (req, res) => {
       .populate("course", "title")
       .populate("topic", "topic")
       .sort({ srNo: 1 });
+
+    if (req.user) {
+      const userProgress = await UserProgress.find({ user: req.userId, topic: topicId });
+      const completedLectureIds = userProgress.filter(p => p.isCompleted).map(p => p.lecture.toString());
+      
+      const enrichedData = data.map(lecture => {
+        const obj = lecture.toObject();
+        obj.isCompleted = completedLectureIds.includes(obj._id.toString());
+        return obj;
+      });
+
+      return res.status(200).json({ success: true, total: enrichedData.length, data: enrichedData });
+    }
 
     return res.status(200).json({ success: true, total: data.length, data });
   } catch (error) {

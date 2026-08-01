@@ -1,5 +1,6 @@
 import express from "express";
 import upload from "../middleware/multer.js";
+import optionalUserAuth from "../middleware/optionalUserAuth.js";
 import {
   createLecture,
   getAllLectures,
@@ -24,7 +25,7 @@ lectureRoute.post(
 
 lectureRoute.get("/get", getAllLectures);
 lectureRoute.get("/get/by-course/:courseId", getLecturesByCourse);
-lectureRoute.get("/get/by-topic/:topicId", getLecturesByTopic);
+lectureRoute.get("/get/by-topic/:topicId", optionalUserAuth, getLecturesByTopic);
 lectureRoute.get("/get/:id", getSingleLecture);
 
 lectureRoute.patch(
