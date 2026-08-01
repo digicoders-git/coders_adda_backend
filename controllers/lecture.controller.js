@@ -69,6 +69,7 @@ export const createLecture = async (req, res) => {
     }
 
 
+    console.log("FILES RECEIVED:", req.files ? Object.keys(req.files) : "No files");
     const lecture = await Lecture.create({
       course,
       topic,
@@ -82,6 +83,7 @@ export const createLecture = async (req, res) => {
       thumbnail: thumbData,
       resource: resourceData
     });
+    console.log("LECTURE SAVED:", lecture.video, lecture.thumbnail);
 
     return res.status(201).json({
       success: true,
