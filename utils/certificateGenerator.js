@@ -2,6 +2,7 @@ import puppeteer from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
 import fs from "fs";
 import path from "path";
+import os from "os";
 import Certificate from "../models/certificate.model.js";
 import User from "../models/user.model.js";
 import Course from "../models/course.model.js";
@@ -77,7 +78,10 @@ export const generateCertificate = async (userId, courseId, template) => {
     });
 
     // 4. Generate Screenshot
-    const certificatesDir = "uploads/certificates/issued";
+    const isRender = process.env.RENDER === 'true';
+    const rootDir = isRender ? os.tmpdir() : process.cwd();
+    const certificatesDir = path.join(rootDir, "uploads", "certificates", "issued");
+    
     if (!fs.existsSync(certificatesDir)) fs.mkdirSync(certificatesDir, { recursive: true });
 
     const fileName = `${certId}.png`;
