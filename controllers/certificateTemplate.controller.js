@@ -21,7 +21,9 @@ export const saveCertificateTemplate = async (req, res) => {
     } = req.body;
 
     if (!courseId) {
-      return res.status(400).json({ message: "Course ID is required" });
+      console.log("Body received:", req.body);
+      console.log("File received:", req.file);
+      return res.status(400).json({ message: "Course ID is required. Received body: " + JSON.stringify(req.body) });
     }
 
     let template = await CertificateTemplate.findOne({ course: courseId });
@@ -38,15 +40,20 @@ export const saveCertificateTemplate = async (req, res) => {
           console.error("Cloudinary delete error:", err);
         }
       }
-      const c = await cloudinary.uploader.upload_large(req.file.path, {
-        folder: "certificates/templates",
-        resource_type: "image",
-      });
-      certificateImageUrl = c.secure_url;
+      try {
+        const c = await cloudinary.uploader.upload(req.file.path, {
+          folder: "certificates/templates",
+          resource_type: "image",
+        });
+        certificateImageUrl = c.secure_url;
+      } catch (err) {
+        console.error("Cloudinary upload error:", err);
+        return res.status(500).json({ message: "Failed to upload image to Cloudinary", error: err.message });
+      }
     }
 
     if (!certificateImageUrl) {
-      return res.status(400).json({ message: "Certificate image is required" });
+      return res.status(400).json({ message: "Certificate image is required. File received? " + !!req.file });
     }
 
     // Strictly construct the object to save
