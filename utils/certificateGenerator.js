@@ -114,7 +114,7 @@ export const generateCertificate = async (userId, courseId, template) => {
 
     console.log(`✅ Certificate File Generated at: ${filePath}`);
 
-    const certificateUrl = `${process.env.BASE_URL}/${certificatesDir}/${fileName}`;
+    const certificateUrl = `${process.env.BASE_URL}/uploads/certificates/issued/${fileName}`;
 
     // 5. Save to Database
     const certificate = await Certificate.create({
