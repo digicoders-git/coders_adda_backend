@@ -1,5 +1,9 @@
 import Certificate from "../models/certificate.model.js";
 
+import fs from "fs";
+import path from "path";
+import os from "os";
+
 /* ================= GET USER CERTIFICATES ================= */
 export const getUserCertificates = async (req, res) => {
   try {
@@ -8,9 +12,27 @@ export const getUserCertificates = async (req, res) => {
       .populate("course", "title thumbnail")
       .sort({ issuedAt: -1 });
 
+    // Filter out certificates where the file is missing on disk
+    const validCertificates = [];
+    const isRender = process.env.RENDER === 'true';
+    const rootDir = isRender ? os.tmpdir() : process.cwd();
+
+    for (const cert of certificates) {
+      if (!cert.certificateUrl) continue;
+      const fileName = cert.certificateUrl.split('/').pop();
+      const filePath = path.join(rootDir, "uploads", "certificates", "issued", fileName);
+      
+      if (fs.existsSync(filePath)) {
+        validCertificates.push(cert);
+      } else {
+        // Auto-delete from DB if file is missing (to allow re-generation)
+        await Certificate.findByIdAndDelete(cert._id);
+      }
+    }
+
     return res.status(200).json({
       success: true,
-      certificates
+      certificates: validCertificates
     });
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error", error: error.message });
