@@ -4,6 +4,15 @@ import fs from "fs";
 
 import UserProgress from "../models/UserProgress.js";
 
+const uploadToCloudinary = (filePath, options) => {
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader.upload_large(filePath, options, (error, result) => {
+      if (error) reject(error);
+      else resolve(result);
+    });
+  });
+};
+
 /* ================= CREATE LECTURE ================= */
 export const createLecture = async (req, res) => {
   try {
@@ -30,7 +39,7 @@ export const createLecture = async (req, res) => {
     const baseUrl = `${req.protocol}://${req.get("host")}`;
 
     if (req.files?.video?.[0]) {
-      const v = await cloudinary.uploader.upload_large(req.files.video[0].path, {
+      const v = await uploadToCloudinary(req.files.video[0].path, {
         folder: "lectures/videos",
         resource_type: "video",
         chunk_size: 6000000
@@ -43,7 +52,7 @@ export const createLecture = async (req, res) => {
     }
 
     if (req.files?.thumbnail?.[0]) {
-      const t = await cloudinary.uploader.upload_large(req.files.thumbnail[0].path, {
+      const t = await uploadToCloudinary(req.files.thumbnail[0].path, {
         folder: "lectures/thumbnails",
         resource_type: "image",
         chunk_size: 6000000
@@ -56,7 +65,7 @@ export const createLecture = async (req, res) => {
     }
 
     if (req.files?.resource?.[0]) {
-      const r = await cloudinary.uploader.upload_large(req.files.resource[0].path, {
+      const r = await uploadToCloudinary(req.files.resource[0].path, {
         folder: "lectures/resources",
         resource_type: "auto",
         chunk_size: 6000000
@@ -68,8 +77,6 @@ export const createLecture = async (req, res) => {
       };
     }
 
-
-    console.log("FILES RECEIVED:", req.files ? Object.keys(req.files) : "No files");
     const lecture = await Lecture.create({
       course,
       topic,
@@ -97,101 +104,75 @@ export const createLecture = async (req, res) => {
   }
 };
 
-/* ================= GET ALL LECTURES (WITH FILTER & PAGINATION) ================= */
+/* ================= GET ALL LECTURES ================= */
 export const getAllLectures = async (req, res) => {
   try {
-    const { search = "", page = 1, limit = 10, courseId = "" } = req.query;
-
-    const query = {};
-    if (search) {
-      query.title = { $regex: search, $options: "i" };
-    }
-    if (courseId) {
-      query.course = courseId;
-    }
-
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    const data = await Lecture.find(query)
+    const lectures = await Lecture.find()
       .populate("course", "title")
-      .populate("topic", "topic")
-      .sort({ srNo: 1 })
-      .skip(skip)
-      .limit(parseInt(limit));
+      .populate("topic", "title")
+      .sort({ createdAt: -1 });
 
-    const total = await Lecture.countDocuments(query);
-
-    return res.status(200).json({
-      success: true,
-      data,
-      pagination: {
-        total,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages: Math.ceil(total / limit)
-      }
-    });
+    return res.status(200).json({ success: true, lectures });
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 };
 
-/* ================= GET BY COURSE ================= */
+/* ================= GET LECTURES BY COURSE ================= */
 export const getLecturesByCourse = async (req, res) => {
   try {
     const { courseId } = req.params;
-
-    const data = await Lecture.find({ course: courseId })
-      .populate("topic", "topic")
-      .sort({ srNo: 1 });
-
-    return res.status(200).json({ success: true, total: data.length, data });
+    const lectures = await Lecture.find({ course: courseId }).sort({ srNo: 1 });
+    return res.status(200).json({ success: true, lectures });
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 };
 
-/* ================= GET BY TOPIC ================= */
+/* ================= GET LECTURES BY TOPIC ================= */
 export const getLecturesByTopic = async (req, res) => {
   try {
     const { topicId } = req.params;
+    const lectures = await Lecture.find({ topic: topicId }).sort({ srNo: 1 }).lean();
 
-    const data = await Lecture.find({ topic: topicId })
-      .populate("course", "title")
-      .populate("topic", "topic")
-      .sort({ srNo: 1 });
-
-    if (req.user) {
-      const userProgress = await UserProgress.find({ user: req.userId, topic: topicId });
-      const completedLectureIds = userProgress.filter(p => p.isCompleted).map(p => p.lecture.toString());
+    // Check progress for authenticated users
+    if (req.user && req.user._id) {
+      const courseId = lectures.length > 0 ? lectures[0].course : null;
       
-      const enrichedData = data.map(lecture => {
-        const obj = lecture.toObject();
-        obj.isCompleted = completedLectureIds.includes(obj._id.toString());
-        return obj;
-      });
-
-      return res.status(200).json({ success: true, total: enrichedData.length, data: enrichedData });
+      if (courseId) {
+        const progress = await UserProgress.findOne({
+          user: req.user._id,
+          course: courseId
+        });
+        
+        if (progress) {
+          lectures.forEach(lecture => {
+            const lectureProgress = progress.completedLectures.find(
+              p => p.lecture.toString() === lecture._id.toString()
+            );
+            lecture.isCompleted = lectureProgress ? lectureProgress.isCompleted : false;
+          });
+        }
+      }
     }
 
-    return res.status(200).json({ success: true, total: data.length, data });
+    return res.status(200).json({ success: true, lectures });
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 };
 
-/* ================= GET SINGLE ================= */
+/* ================= GET SINGLE LECTURE ================= */
 export const getSingleLecture = async (req, res) => {
   try {
     const { id } = req.params;
-
     const lecture = await Lecture.findById(id)
       .populate("course", "title")
-      .populate("topic", "topic");
+      .populate("topic", "title");
 
     if (!lecture) return res.status(404).json({ message: "Lecture not found" });
 
-    return res.status(200).json({ success: true, data: lecture });
+    return res.status(200).json({ success: true, lecture });
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
@@ -235,7 +216,7 @@ export const updateLecture = async (req, res) => {
       if (lecture.video?.public_id) {
         await cloudinary.uploader.destroy(lecture.video.public_id, { resource_type: "video" }).catch(e => console.error(e));
       }
-      const v = await cloudinary.uploader.upload_large(req.files.video[0].path, {
+      const v = await uploadToCloudinary(req.files.video[0].path, {
         folder: "lectures/videos",
         resource_type: "video",
         chunk_size: 6000000
@@ -257,9 +238,9 @@ export const updateLecture = async (req, res) => {
     // Update thumbnail
     if (req.files?.thumbnail?.[0]) {
       if (lecture.thumbnail?.public_id) {
-        await cloudinary.uploader.destroy(lecture.thumbnail.public_id, { resource_type: "image" }).catch(e => console.error(e));
+        await cloudinary.uploader.destroy(lecture.thumbnail.public_id).catch(e => console.error(e));
       }
-      const t = await cloudinary.uploader.upload_large(req.files.thumbnail[0].path, {
+      const t = await uploadToCloudinary(req.files.thumbnail[0].path, {
         folder: "lectures/thumbnails",
         resource_type: "image",
         chunk_size: 6000000
@@ -272,7 +253,7 @@ export const updateLecture = async (req, res) => {
       lecture.markModified('thumbnail');
     } else if (removeThumbnail === "true") {
       if (lecture.thumbnail?.public_id) {
-        await cloudinary.uploader.destroy(lecture.thumbnail.public_id, { resource_type: "image" }).catch(e => console.error(e));
+        await cloudinary.uploader.destroy(lecture.thumbnail.public_id).catch(e => console.error(e));
       }
       lecture.thumbnail = null;
       lecture.markModified('thumbnail');
@@ -283,7 +264,7 @@ export const updateLecture = async (req, res) => {
       if (lecture.resource?.public_id) {
         await cloudinary.uploader.destroy(lecture.resource.public_id, { resource_type: "raw" }).catch(e => console.error(e));
       }
-      const r = await cloudinary.uploader.upload_large(req.files.resource[0].path, {
+      const r = await uploadToCloudinary(req.files.resource[0].path, {
         folder: "lectures/resources",
         resource_type: "auto",
         chunk_size: 6000000
