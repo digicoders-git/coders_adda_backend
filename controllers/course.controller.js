@@ -315,13 +315,20 @@ export const getSingleCourse = async (req, res) => {
 
     const studentCount = await mongoose.model("User").countDocuments({ purchaseCourses: id });
 
+    let avgRating = 0;
+    if (course.reviews && course.reviews.length > 0) {
+      const sum = course.reviews.reduce((acc, r) => acc + (r.rating || 0), 0);
+      avgRating = parseFloat((sum / course.reviews.length).toFixed(1));
+    }
+
     return res.status(200).json({
       success: true,
       data: {
         ...course.toObject(),
         curriculum: structuredCurriculum,
         totalStudents: studentCount || 0,
-        studentsCount: studentCount || 0
+        studentsCount: studentCount || 0,
+        rating: avgRating
       }
     });
 
