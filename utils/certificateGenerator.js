@@ -15,8 +15,23 @@ import { generateCertificateHTML } from "./certificateHtml.js";
 export const generateCertificate = async (userId, courseId, template) => {
   let browser = null;
   try {
-    const existing = await Certificate.findOne({ user: userId, course: courseId });
-    if (existing) return existing;
+    let existing = await Certificate.findOne({ user: userId, course: courseId });
+    
+    // Check if the file actually exists on disk (Fix for missing old certificates on Render)
+    if (existing) {
+      const isRender = process.env.RENDER === 'true';
+      const rootDir = isRender ? os.tmpdir() : process.cwd();
+      const fileName = existing.certificateUrl.split('/').pop();
+      const filePath = path.join(rootDir, "uploads", "certificates", "issued", fileName);
+      
+      if (!fs.existsSync(filePath)) {
+        console.log(`⚠️ Certificate file missing for ${existing.certificateId}, re-generating...`);
+        await Certificate.findByIdAndDelete(existing._id);
+        existing = null;
+      } else {
+        return existing;
+      }
+    }
 
     const user = await User.findById(userId);
     const course = await Course.findById(courseId);
