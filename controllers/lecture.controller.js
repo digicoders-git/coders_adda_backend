@@ -104,15 +104,40 @@ export const createLecture = async (req, res) => {
   }
 };
 
-/* ================= GET ALL LECTURES ================= */
+/* ================= GET ALL LECTURES (WITH FILTER & PAGINATION) ================= */
 export const getAllLectures = async (req, res) => {
   try {
-    const lectures = await Lecture.find()
-      .populate("course", "title")
-      .populate("topic", "title")
-      .sort({ createdAt: -1 });
+    const { search = "", page = 1, limit = 10, courseId = "" } = req.query;
 
-    return res.status(200).json({ success: true, lectures });
+    const query = {};
+    if (search) {
+      query.title = { $regex: search, $options: "i" };
+    }
+    if (courseId) {
+      query.course = courseId;
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const data = await Lecture.find(query)
+      .populate("course", "title")
+      .populate("topic", "topic")
+      .sort({ srNo: 1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const total = await Lecture.countDocuments(query);
+
+    return res.status(200).json({
+      success: true,
+      data,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
@@ -122,8 +147,12 @@ export const getAllLectures = async (req, res) => {
 export const getLecturesByCourse = async (req, res) => {
   try {
     const { courseId } = req.params;
-    const lectures = await Lecture.find({ course: courseId }).sort({ srNo: 1 });
-    return res.status(200).json({ success: true, lectures });
+
+    const data = await Lecture.find({ course: courseId })
+      .populate("topic", "topic")
+      .sort({ srNo: 1 });
+
+    return res.status(200).json({ success: true, total: data.length, data });
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
@@ -156,7 +185,7 @@ export const getLecturesByTopic = async (req, res) => {
       }
     }
 
-    return res.status(200).json({ success: true, lectures });
+    return res.status(200).json({ success: true, lectures, data: lectures, total: lectures.length });
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
@@ -166,13 +195,14 @@ export const getLecturesByTopic = async (req, res) => {
 export const getSingleLecture = async (req, res) => {
   try {
     const { id } = req.params;
+
     const lecture = await Lecture.findById(id)
       .populate("course", "title")
-      .populate("topic", "title");
+      .populate("topic", "topic");
 
     if (!lecture) return res.status(404).json({ message: "Lecture not found" });
 
-    return res.status(200).json({ success: true, lecture });
+    return res.status(200).json({ success: true, data: lecture });
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
