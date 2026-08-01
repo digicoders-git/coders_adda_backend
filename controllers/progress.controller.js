@@ -80,6 +80,7 @@ export const updateProgressREST = async (req, res) => {
     let certificateIssued = false;
     let certificateUrl = null;
 
+    let debugReason = "";
     if (coursePercent >= 90) {
       console.log(`[REST] Threshold met. Checking certificate template...`);
       // Check if course has a template
@@ -93,24 +94,33 @@ export const updateProgressREST = async (req, res) => {
             if (certificate) {
               certificateIssued = true;
               certificateUrl = certificate.certificateUrl;
+              debugReason = "Success";
               console.log(`[REST] Certificate generated successfully!`);
+            } else {
+              debugReason = "generateCertificate returned null";
             }
           } catch(certError) {
+             debugReason = "Puppeteer Error: " + certError.message;
              console.error(`[REST] Certificate Generation Failed:`, certError);
           }
         } else {
+          debugReason = "Template ID not found in DB";
           console.log(`[REST] Template not found in DB`);
         }
       } else {
+        debugReason = "Course has no certificateTemplate attached";
         console.log(`[REST] Course has no template attached`);
       }
+    } else {
+      debugReason = `Percent is ${coursePercent}%, need 90%`;
     }
 
     return res.status(200).json({
       success: true,
       message: "Progress updated successfully",
       certificateIssued,
-      certificateUrl
+      certificateUrl,
+      debugReason
     });
 
   } catch (error) {
