@@ -196,7 +196,10 @@ export const updateLecture = async (req, res) => {
       duration,
       description,
       privacy,
-      isActive
+      isActive,
+      removeVideo,
+      removeThumbnail,
+      removeResource
     } = req.body;
 
     if (course !== undefined) lecture.course = course;
@@ -225,6 +228,13 @@ export const updateLecture = async (req, res) => {
         localUrl: `${baseUrl}/uploads/lectures/videos/${req.files.video[0].filename}`,
         public_id: v.public_id
       };
+      lecture.markModified('video');
+    } else if (removeVideo === "true") {
+      if (lecture.video?.public_id) {
+        await cloudinary.uploader.destroy(lecture.video.public_id, { resource_type: "video" }).catch(e => console.error(e));
+      }
+      lecture.video = null;
+      lecture.markModified('video');
     }
 
     // Update thumbnail
@@ -242,6 +252,13 @@ export const updateLecture = async (req, res) => {
         localUrl: `${baseUrl}/uploads/lectures/thumbnails/${req.files.thumbnail[0].filename}`,
         public_id: t.public_id
       };
+      lecture.markModified('thumbnail');
+    } else if (removeThumbnail === "true") {
+      if (lecture.thumbnail?.public_id) {
+        await cloudinary.uploader.destroy(lecture.thumbnail.public_id, { resource_type: "image" }).catch(e => console.error(e));
+      }
+      lecture.thumbnail = null;
+      lecture.markModified('thumbnail');
     }
 
     // Update resource
@@ -259,6 +276,13 @@ export const updateLecture = async (req, res) => {
         localUrl: `${baseUrl}/uploads/lectures/resources/${req.files.resource[0].filename}`,
         public_id: r.public_id
       };
+      lecture.markModified('resource');
+    } else if (removeResource === "true") {
+      if (lecture.resource?.public_id) {
+        await cloudinary.uploader.destroy(lecture.resource.public_id, { resource_type: "raw" }).catch(e => console.error(e));
+      }
+      lecture.resource = null;
+      lecture.markModified('resource');
     }
 
 
