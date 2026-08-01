@@ -1,4 +1,5 @@
-import puppeteer from "puppeteer";
+import puppeteer from "puppeteer-core";
+import chromium from "@sparticuz/chromium";
 import fs from "fs";
 import path from "path";
 import Certificate from "../models/certificate.model.js";
@@ -29,10 +30,12 @@ export const generateCertificate = async (userId, courseId, template) => {
 
     console.log(`🚀 Starting Puppeteer for: ${user.name} - ${course.title}`);
 
-    // 1. Launch Browser
+    // 1. Launch Browser using Sparticuz Chromium
     browser = await puppeteer.launch({
-      headless: "new",
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-web-security", "--disable-dev-shm-usage"]
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
     });
 
     const page = await browser.newPage();
