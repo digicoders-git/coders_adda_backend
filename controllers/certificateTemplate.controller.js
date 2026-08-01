@@ -29,8 +29,20 @@ export const saveCertificateTemplate = async (req, res) => {
     // Handle Image Upload
     let certificateImageUrl = template?.certificateImage;
     if (req.file) {
-      const baseUrl = `${req.protocol}://${req.get("host")}`;
-      certificateImageUrl = `${baseUrl}/uploads/certificates/templates/${req.file.filename}`;
+      if (template?.certificateImage && template.certificateImage.includes('cloudinary.com')) {
+        try {
+          const parts = template.certificateImage.split('/');
+          const publicId = parts[parts.length - 1].split('.')[0];
+          await cloudinary.uploader.destroy(`certificates/templates/${publicId}`, { resource_type: "image" });
+        } catch (err) {
+          console.error("Cloudinary delete error:", err);
+        }
+      }
+      const c = await cloudinary.uploader.upload_large(req.file.path, {
+        folder: "certificates/templates",
+        resource_type: "image",
+      });
+      certificateImageUrl = c.secure_url;
     }
 
     if (!certificateImageUrl) {
