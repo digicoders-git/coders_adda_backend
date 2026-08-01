@@ -41,9 +41,10 @@ export const createLecture = async (req, res) => {
     }
 
     if (req.files?.thumbnail?.[0]) {
-      const t = await cloudinary.uploader.upload(req.files.thumbnail[0].path, {
+      const t = await cloudinary.uploader.upload_large(req.files.thumbnail[0].path, {
         folder: "lectures/thumbnails",
-        resource_type: "image"
+        resource_type: "image",
+        chunk_size: 6000000
       });
       thumbData = {
         url: t.secure_url,
@@ -53,9 +54,10 @@ export const createLecture = async (req, res) => {
     }
 
     if (req.files?.resource?.[0]) {
-      const r = await cloudinary.uploader.upload(req.files.resource[0].path, {
+      const r = await cloudinary.uploader.upload_large(req.files.resource[0].path, {
         folder: "lectures/resources",
-        resource_type: "auto"
+        resource_type: "auto",
+        chunk_size: 6000000
       });
       resourceData = {
         url: r.secure_url,
@@ -228,11 +230,12 @@ export const updateLecture = async (req, res) => {
     // Update thumbnail
     if (req.files?.thumbnail?.[0]) {
       if (lecture.thumbnail?.public_id) {
-        await cloudinary.uploader.destroy(lecture.thumbnail.public_id).catch(e => console.error(e));
+        await cloudinary.uploader.destroy(lecture.thumbnail.public_id, { resource_type: "image" }).catch(e => console.error(e));
       }
-      const t = await cloudinary.uploader.upload(req.files.thumbnail[0].path, {
+      const t = await cloudinary.uploader.upload_large(req.files.thumbnail[0].path, {
         folder: "lectures/thumbnails",
-        resource_type: "image"
+        resource_type: "image",
+        chunk_size: 6000000
       });
       lecture.thumbnail = {
         url: t.secure_url,
@@ -244,11 +247,12 @@ export const updateLecture = async (req, res) => {
     // Update resource
     if (req.files?.resource?.[0]) {
       if (lecture.resource?.public_id) {
-        await cloudinary.uploader.destroy(lecture.resource.public_id, { resource_type: "auto" }).catch(e => console.error(e));
+        await cloudinary.uploader.destroy(lecture.resource.public_id, { resource_type: "raw" }).catch(e => console.error(e));
       }
-      const r = await cloudinary.uploader.upload(req.files.resource[0].path, {
+      const r = await cloudinary.uploader.upload_large(req.files.resource[0].path, {
         folder: "lectures/resources",
-        resource_type: "auto"
+        resource_type: "auto",
+        chunk_size: 6000000
       });
       lecture.resource = {
         url: r.secure_url,
