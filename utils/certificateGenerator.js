@@ -1,23 +1,19 @@
-import puppeteer from "puppeteer-core";
-import chromium from "@sparticuz/chromium";
 import fs from "fs";
 import path from "path";
 import os from "os";
+import { createCanvas, loadImage } from "canvas";
 import Certificate from "../models/certificate.model.js";
 import User from "../models/user.model.js";
 import Course from "../models/course.model.js";
-import { generateFontCSS } from "./fontCssGenerator.js";
-import { generateCertificateHTML } from "./certificateHtml.js";
 
 /**
- * Generates a certificate for a user based on stored template configuration using Puppeteer.
+ * Generates a certificate for a user based on stored template configuration using node-canvas.
  */
 export const generateCertificate = async (userId, courseId, template) => {
-  let browser = null;
   try {
     let existing = await Certificate.findOne({ user: userId, course: courseId });
     
-    // Check if the file actually exists on disk (Fix for missing old certificates on Render)
+    // Check if the file actually exists on disk
     if (existing) {
       const isRender = process.env.RENDER === 'true';
       const rootDir = isRender ? os.tmpdir() : process.cwd();
@@ -44,55 +40,61 @@ export const generateCertificate = async (userId, courseId, template) => {
       year: "numeric"
     });
 
-    console.log(`🚀 Starting Puppeteer for: ${user.name} - ${course.title}`);
+    console.log(`🚀 Starting Canvas Certificate Gen for: ${user.name} - ${course.title}`);
 
-    // 1. Launch Browser using Sparticuz Chromium
-    browser = await puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
-    });
+    const width = parseInt(template.width) || 1200;
+    const height = parseInt(template.height) || 800;
+    const canvas = createCanvas(width, height);
+    const ctx = canvas.getContext("2d");
 
-    const page = await browser.newPage();
+    // Load background image
+    const image = await loadImage(template.certificateImage);
+    ctx.drawImage(image, 0, 0, width, height);
 
-    // 🚩 Debugging: Catch page errors
-    page.on("console", (msg) => console.log("📄 Puppeteer Log:", msg.text()));
-    page.on("pageerror", (err) => console.error("❌ Puppeteer Page Error:", err.message));
-
-    // 2. Prepare HTML & CSS
-    // Extract required font families to keep HTML size small
     const getLayer = (l) => template[l] || (template._doc ? template._doc[l] : null);
-    const layers = ["studentName", "courseName", "certificateId", "collegeName", "issueDate"];
-    const requiredFamilies = layers
-      .map(l => {
-        const layer = getLayer(l);
-        return layer?.fontFamily?.split(',')[0].trim().replace(/['"]/g, "");
-      })
-      .filter(f => f);
 
-    const uniqueFamilies = [...new Set(requiredFamilies)];
-    console.log(`🔡 Fonts requested: ${uniqueFamilies.join(', ')}`);
-    console.log(`🖼️ Background Image URL: ${template.certificateImage}`);
+    const renderText = (layerCfg, text) => {
+      if (!layerCfg || !layerCfg.status || !text) return;
 
-    const fontCSS = generateFontCSS(uniqueFamilies);
-    const html = generateCertificateHTML(template, user, course, fontCSS, certId, issueDate);
-    console.log(`📄 Generated HTML Size: ${(html.length / 1024 / 1024).toFixed(2)} MB`);
+      let fontStyle = "";
+      if (layerCfg.italic) fontStyle += "italic ";
+      if (layerCfg.bold) fontStyle += "bold ";
+      
+      // Canvas fallback to sans-serif if font not installed
+      const fontSize = layerCfg.fontSize || "30px";
+      ctx.font = `${fontStyle}${fontSize} sans-serif`;
+      ctx.fillStyle = layerCfg.textColor || "#000000";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
 
-    // 3. Set Content
-    await page.setViewport({
-      width: parseInt(template.width) || 1200,
-      height: parseInt(template.height) || 800,
-      deviceScaleFactor: 2
-    });
+      const x = parseFloat(layerCfg.horizontalPosition) || 0;
+      const y = parseFloat(layerCfg.verticalPosition) || 0;
 
-    // Use only 'load' to avoid waiting for every single background request for 60s
-    await page.setContent(html, {
-      waitUntil: "load",
-      timeout: 60000
-    });
+      ctx.fillText(text, x, y);
 
-    // 4. Generate Screenshot
+      // Simple underline approximation if needed
+      if (layerCfg.underline) {
+        const textWidth = ctx.measureText(text).width;
+        ctx.beginPath();
+        ctx.moveTo(x - textWidth / 2, y + parseInt(fontSize) / 2 + 2);
+        ctx.lineTo(x + textWidth / 2, y + parseInt(fontSize) / 2 + 2);
+        ctx.strokeStyle = layerCfg.textColor;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    };
+
+    const studentName = user.name || user.fullName || "Student Name";
+    const courseTitle = course.title || "Course Name";
+    const collegeName = user.college || "CodersAdda";
+
+    renderText(getLayer("studentName"), studentName);
+    renderText(getLayer("courseName"), courseTitle);
+    renderText(getLayer("certificateId"), certId);
+    renderText(getLayer("collegeName"), collegeName);
+    renderText(getLayer("issueDate"), issueDate);
+
+    // Save to file
     const isRender = process.env.RENDER === 'true';
     const rootDir = isRender ? os.tmpdir() : process.cwd();
     const certificatesDir = path.join(rootDir, "uploads", "certificates", "issued");
@@ -102,21 +104,20 @@ export const generateCertificate = async (userId, courseId, template) => {
     const fileName = `${certId}.png`;
     const filePath = path.join(certificatesDir, fileName);
 
-    // Give it a larger buffer for fonts to settle (3 seconds)
-    await new Promise(r => setTimeout(r, 3000));
+    const out = fs.createWriteStream(filePath);
+    const stream = canvas.createPNGStream();
+    stream.pipe(out);
 
-    await page.screenshot({
-      path: filePath,
-      type: "png",
-      fullPage: true,
-      omitBackground: true
+    await new Promise((resolve, reject) => {
+      out.on("finish", resolve);
+      out.on("error", reject);
     });
 
     console.log(`✅ Certificate File Generated at: ${filePath}`);
 
     const certificateUrl = `${process.env.BASE_URL}/uploads/certificates/issued/${fileName}`;
 
-    // 5. Save to Database
+    // Save to Database
     const certificate = await Certificate.create({
       user: userId,
       course: courseId,
@@ -125,12 +126,10 @@ export const generateCertificate = async (userId, courseId, template) => {
       issuedAt: new Date()
     });
 
-    await browser.close();
     return certificate;
 
   } catch (error) {
-    console.error("❌ Puppeteer Certificate Generation Error:", error);
-    if (browser) await browser.close();
+    console.error("❌ Canvas Certificate Generation Error:", error);
     throw error;
   }
 };
