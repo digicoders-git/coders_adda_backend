@@ -175,7 +175,7 @@ export const getItemSalesData = async (req, res) => {
       const categoryModel = CourseCategory;
 
       distribution = await Payment.aggregate([
-        { $match: { itemType, status: "success" } },
+        { $match: periodMatchStage },
         {
           $lookup: {
             from: model.collection.name,
@@ -203,7 +203,7 @@ export const getItemSalesData = async (req, res) => {
       ]);
     } else if (itemType === "job") {
       distribution = await Payment.aggregate([
-        { $match: { itemType, status: "success" } },
+        { $match: periodMatchStage },
         {
           $lookup: {
             from: Job.collection.name,
@@ -222,7 +222,7 @@ export const getItemSalesData = async (req, res) => {
       ]);
     } else if (itemType === "subscription") {
       distribution = await Payment.aggregate([
-        { $match: { itemType, status: "success" } },
+        { $match: periodMatchStage },
         {
           $lookup: {
             from: Subscription.collection.name,
@@ -242,7 +242,7 @@ export const getItemSalesData = async (req, res) => {
     }
 
     // 5. Success Transactions (limit 50)
-    const successTransactions = await Payment.find({ itemType, status: "success" })
+    const successTransactions = await Payment.find(periodMatchStage)
       .sort({ createdAt: -1 })
       .limit(50)
       .populate("user", "name mobile profilePicture")
@@ -265,7 +265,8 @@ export const getItemSalesData = async (req, res) => {
     }
 
     // 6. Failed Transactions (limit 50)
-    const failedTransactions = await Payment.find({ itemType, status: "failed" })
+    const failedMatchStage = { ...periodMatchStage, status: "failed" };
+    const failedTransactions = await Payment.find(failedMatchStage)
       .sort({ createdAt: -1 })
       .limit(50)
       .populate("user", "name mobile")
