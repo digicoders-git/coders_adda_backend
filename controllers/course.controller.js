@@ -637,7 +637,8 @@ export const addCourseReview = async (req, res) => {
       studentName: studentName || "Anonymous",
       comment: comment || "",
       rating: Number(rating) || 5,
-      createdAt: new Date()
+      createdAt: new Date(),
+      isApproved: false
     });
 
     await course.save();
@@ -645,6 +646,41 @@ export const addCourseReview = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Review added successfully"
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message
+    });
+  }
+};
+
+/* ================= TOGGLE COURSE REVIEW STATUS ================= */
+export const toggleCourseReviewStatus = async (req, res) => {
+  try {
+    const { courseId, reviewId } = req.params;
+    
+    if (!courseId || !mongoose.Types.ObjectId.isValid(courseId)) {
+      return res.status(400).json({ message: "Invalid course ID" });
+    }
+
+    const course = await Course.findById(courseId);
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+
+    const review = course.reviews.id(reviewId);
+    if (!review) {
+      return res.status(404).json({ message: "Review not found" });
+    }
+
+    review.isApproved = !review.isApproved;
+    await course.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `Review ${review.isApproved ? "Approved" : "Disapproved"} successfully`,
+      isApproved: review.isApproved
     });
   } catch (error) {
     return res.status(500).json({
