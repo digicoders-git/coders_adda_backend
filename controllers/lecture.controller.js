@@ -35,7 +35,7 @@ export const createLecture = async (req, res) => {
       });
       videoData = {
         url: v.secure_url,
-        localUrl: `${baseUrl}/uploads/lectures/videos/${req.files.video[0].filename}`,
+        localUrl: v.secure_url,
         public_id: v.public_id
       };
     }
@@ -48,7 +48,7 @@ export const createLecture = async (req, res) => {
       });
       thumbData = {
         url: t.secure_url,
-        localUrl: `${baseUrl}/uploads/lectures/thumbnails/${req.files.thumbnail[0].filename}`,
+        localUrl: t.secure_url,
         public_id: t.public_id
       };
     }
@@ -61,7 +61,7 @@ export const createLecture = async (req, res) => {
       });
       resourceData = {
         url: r.secure_url,
-        localUrl: `${baseUrl}/uploads/lectures/resources/${req.files.resource[0].filename}`,
+        localUrl: r.secure_url,
         public_id: r.public_id
       };
     }
@@ -225,7 +225,7 @@ export const updateLecture = async (req, res) => {
       });
       lecture.video = {
         url: v.secure_url,
-        localUrl: `${baseUrl}/uploads/lectures/videos/${req.files.video[0].filename}`,
+        localUrl: v.secure_url,
         public_id: v.public_id
       };
       lecture.markModified('video');
@@ -249,7 +249,7 @@ export const updateLecture = async (req, res) => {
       });
       lecture.thumbnail = {
         url: t.secure_url,
-        localUrl: `${baseUrl}/uploads/lectures/thumbnails/${req.files.thumbnail[0].filename}`,
+        localUrl: t.secure_url,
         public_id: t.public_id
       };
       lecture.markModified('thumbnail');
@@ -273,7 +273,7 @@ export const updateLecture = async (req, res) => {
       });
       lecture.resource = {
         url: r.secure_url,
-        localUrl: `${baseUrl}/uploads/lectures/resources/${req.files.resource[0].filename}`,
+        localUrl: r.secure_url,
         public_id: r.public_id
       };
       lecture.markModified('resource');
