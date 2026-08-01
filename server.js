@@ -44,6 +44,7 @@ import blogRoutes from './routes/blog.routes.js';
 import reviewRoutes from './routes/review.routes.js';
 import serviceRoutes from './routes/service.routes.js';
 import supportTicketRouter from './routes/supportTicket.routes.js';
+import progressRoute from './routes/progress.routes.js';
 import http from "http";
 import { initSocket } from "./config/socket.js";
 import "./cron/subscriptionExpiry.cron.js";
@@ -126,6 +127,7 @@ app.use('/reviews', reviewRoutes)
 app.use('/service', serviceRoutes)
 app.use('/services', serviceRoutes)
 app.use('/support-ticket', supportTicketRouter)
+app.use('/progress', progressRoute)
 
 
 // 404 handler
