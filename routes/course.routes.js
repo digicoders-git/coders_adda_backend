@@ -8,7 +8,8 @@ import {
   deleteCourse,
   toggleCourseStatus,
   getInstructorCourses,
-  getCategoriesWithCourseCount
+  getCategoriesWithCourseCount,
+  addCourseReview
 } from "../controllers/course.controller.js";
 import verifyInstructorToken from "../middleware/verifyInstructorToken.js";
 
@@ -55,6 +56,7 @@ courseRoute.patch(
 
 courseRoute.delete("/delete/:id", deleteCourse);
 courseRoute.patch("/toggle-status/:id", toggleCourseStatus);
+courseRoute.post("/add-review/:id", addCourseReview);
 
 
 export default courseRoute;

@@ -617,3 +617,39 @@ export const getInstructorCourses = async (req, res) => {
     });
   }
 };
+
+/* ================= ADD COURSE REVIEW ================= */
+export const addCourseReview = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { studentName, comment, rating } = req.body;
+    
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid course ID" });
+    }
+
+    const course = await Course.findById(id);
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+
+    course.reviews.push({
+      studentName: studentName || "Anonymous",
+      comment: comment || "",
+      rating: Number(rating) || 5,
+      createdAt: new Date()
+    });
+
+    await course.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Review added successfully"
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message
+    });
+  }
+};
