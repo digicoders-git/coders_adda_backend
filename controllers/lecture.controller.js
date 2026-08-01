@@ -28,9 +28,10 @@ export const createLecture = async (req, res) => {
     const baseUrl = `${req.protocol}://${req.get("host")}`;
 
     if (req.files?.video?.[0]) {
-      const v = await cloudinary.uploader.upload(req.files.video[0].path, {
+      const v = await cloudinary.uploader.upload_large(req.files.video[0].path, {
         folder: "lectures/videos",
-        resource_type: "video"
+        resource_type: "video",
+        chunk_size: 6000000
       });
       videoData = {
         url: v.secure_url,
@@ -85,6 +86,7 @@ export const createLecture = async (req, res) => {
     });
 
   } catch (error) {
+    console.error("CREATE LECTURE ERROR:", error);
     return res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 };
@@ -211,9 +213,10 @@ export const updateLecture = async (req, res) => {
       if (lecture.video?.public_id) {
         await cloudinary.uploader.destroy(lecture.video.public_id, { resource_type: "video" }).catch(e => console.error(e));
       }
-      const v = await cloudinary.uploader.upload(req.files.video[0].path, {
+      const v = await cloudinary.uploader.upload_large(req.files.video[0].path, {
         folder: "lectures/videos",
-        resource_type: "video"
+        resource_type: "video",
+        chunk_size: 6000000
       });
       lecture.video = {
         url: v.secure_url,
