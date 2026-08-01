@@ -109,6 +109,6 @@ export const generateCertificate = async (userId, courseId, template) => {
   } catch (error) {
     console.error("❌ Puppeteer Certificate Generation Error:", error);
     if (browser) await browser.close();
-    return null;
+    throw error;
   }
 };
