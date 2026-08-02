@@ -63,26 +63,22 @@ export const updateProgressREST = async (req, res) => {
       }
     );
 
-    // 📜 CERTIFICATE LOGIC: Check course completion (TIME BASED - Matches Dashboard)
-    const lectures = await Lecture.find({ course: courseId, isActive: true }).select("duration");
-    const totalDuration = lectures.reduce((acc, l) => acc + parseDuration(l.duration), 0);
-
-    const userProgressDocs = await UserProgress.find({
+    // 📜 CERTIFICATE LOGIC: Check course completion (ALL LECTURES COMPLETED)
+    const activeLecturesCount = await Lecture.countDocuments({ course: courseId, isActive: true });
+    const completedLecturesCount = await UserProgress.countDocuments({
       user: userId,
-      course: courseId
-    }).select("watchedSeconds");
+      course: courseId,
+      isCompleted: true
+    });
 
-    const watched = userProgressDocs.reduce((acc, doc) => acc + (doc.watchedSeconds || 0), 0);
-    const coursePercent = totalDuration === 0 ? 0 : Math.min(100, Math.floor((watched / totalDuration) * 100));
-
-    console.log(`[REST] Progress: User ${userId} watched ${watched}/${totalDuration}s -> ${coursePercent}%`);
+    console.log(`[REST] Progress: User ${userId} completed ${completedLecturesCount}/${activeLecturesCount} lectures`);
 
     let certificateIssued = false;
     let certificateUrl = null;
-
     let debugReason = "";
-    if (coursePercent >= 90) {
-      console.log(`[REST] Threshold met. Checking certificate template...`);
+
+    if (activeLecturesCount > 0 && completedLecturesCount >= activeLecturesCount) {
+      console.log(`[REST] All lectures completed. Checking certificate template...`);
       // Check if course has a template
       const courseData = await Course.findById(courseId).select("certificateTemplate");
       if (courseData?.certificateTemplate) {
@@ -112,7 +108,7 @@ export const updateProgressREST = async (req, res) => {
         console.log(`[REST] Course has no template attached`);
       }
     } else {
-      debugReason = `Percent is ${coursePercent}%, need 90%`;
+      debugReason = `Completed ${completedLecturesCount} of ${activeLecturesCount} lectures`;
     }
 
     return res.status(200).json({

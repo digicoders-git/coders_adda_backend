@@ -15,9 +15,14 @@ export const generateCertificate = async (userId, courseId, template) => {
     
     // Check if the file actually exists on disk
     if (existing) {
+      if (existing.certificateUrl && existing.certificateUrl.includes("res.cloudinary.com")) {
+        // Cloudinary URL, assume valid
+        return existing;
+      }
+
       const isRender = process.env.RENDER === 'true';
       const rootDir = isRender ? os.tmpdir() : process.cwd();
-      const fileName = existing.certificateUrl.split('/').pop();
+      const fileName = existing.certificateUrl ? existing.certificateUrl.split('/').pop() : '';
       const filePath = path.join(rootDir, "uploads", "certificates", "issued", fileName);
       
       if (!fs.existsSync(filePath)) {
