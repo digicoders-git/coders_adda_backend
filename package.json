@@ -28,7 +28,7 @@
     "jspdf-autotable": "^5.0.7",
     "mongoose": "^9.1.1",
     "multer": "^2.0.2",
-    "node-cron": "^4.2.1",
+    "node-cron": "^4.6.0",
     "puppeteer": "^24.37.2",
     "puppeteer-core": "^25.4.0",
     "razorpay": "^2.9.6",

@@ -18,6 +18,8 @@ import './config/firebase.js';
 
 // Initialize Cron Jobs
 import { initCronJobs } from './config/cron.js';
+import "./cron/subscriptionExpiry.cron.js";
+import "./cron/scheduledNotifications.cron.js";
 
 import { adminRoute } from './routes/admin.route.js';
 import CourseCategoryRoutes from './routes/courseCategory.routes.js';
@@ -55,7 +57,6 @@ import supportTicketRouter from './routes/supportTicket.routes.js';
 import progressRoute from './routes/progress.routes.js';
 import http from "http";
 import { initSocket } from "./config/socket.js";
-import "./cron/subscriptionExpiry.cron.js";
 
 const app = express()
 app.get('/course/check', (req, res) => res.json({ status: "SYSTEM READY", time: new Date().toISOString() }));

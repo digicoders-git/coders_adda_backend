@@ -1,13 +1,34 @@
 import express from 'express';
-import { sendNotificationToUser, sendNotificationToAll } from '../controllers/notification.controller.js';
+import userAuth from '../middleware/userAuth.js';
 import verifyAdminToken from '../middleware/verifyAdminToken.js';
+import {
+  createNotification,
+  getAdminNotifications,
+  deleteNotification,
+  getNotificationStats,
+  getMyNotifications,
+  getUnreadCount,
+  markAsRead,
+  markAllAsRead,
+  getUserNotificationSettings,
+  updateUserNotificationSettings
+} from '../controllers/notification.controller.js';
 
-const notificationRoute = express.Router();
+const router = express.Router();
 
-// Route to send a notification to a specific user (Admin only)
-notificationRoute.post('/send', verifyAdminToken, sendNotificationToUser);
+// --- ADMIN ROUTES ---
+router.post('/admin/create', verifyAdminToken, createNotification);
+router.get('/admin/list', verifyAdminToken, getAdminNotifications);
+router.delete('/admin/:id', verifyAdminToken, deleteNotification);
+router.get('/admin/stats', verifyAdminToken, getNotificationStats);
 
-// Route to broadcast a notification to all users (Admin only)
-notificationRoute.post('/broadcast', verifyAdminToken, sendNotificationToAll);
+// --- USER ROUTES ---
+router.get('/my-notifications', userAuth, getMyNotifications);
+router.get('/unread-count', userAuth, getUnreadCount);
+router.put('/mark-read/:id', userAuth, markAsRead);
+router.put('/mark-all-read', userAuth, markAllAsRead);
 
-export default notificationRoute;
+router.get('/settings', userAuth, getUserNotificationSettings);
+router.put('/settings', userAuth, updateUserNotificationSettings);
+
+export default router;
