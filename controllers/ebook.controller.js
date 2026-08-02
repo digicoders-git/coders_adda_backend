@@ -162,6 +162,7 @@ export const updateEbook = async (req, res) => {
       description,
       priceType,
       price,
+      fileSize,
       isActive
     } = req.body;
 
