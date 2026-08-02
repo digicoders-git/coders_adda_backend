@@ -169,14 +169,14 @@ export const getLecturesByTopic = async (req, res) => {
       const courseId = lectures.length > 0 ? lectures[0].course : null;
       
       if (courseId) {
-        const progress = await UserProgress.findOne({
+        const userProgresses = await UserProgress.find({
           user: req.user._id,
           course: courseId
         });
         
-        if (progress) {
+        if (userProgresses && userProgresses.length > 0) {
           lectures.forEach(lecture => {
-            const lectureProgress = progress.completedLectures.find(
+            const lectureProgress = userProgresses.find(
               p => p.lecture.toString() === lecture._id.toString()
             );
             lecture.isCompleted = lectureProgress ? lectureProgress.isCompleted : false;
