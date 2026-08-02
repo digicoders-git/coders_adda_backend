@@ -19,6 +19,13 @@ export const getUserCertificates = async (req, res) => {
 
     for (const cert of certificates) {
       if (!cert.certificateUrl) continue;
+      
+      // If it's a Cloudinary URL, assume it's valid and don't check local filesystem
+      if (cert.certificateUrl.includes("res.cloudinary.com")) {
+        validCertificates.push(cert);
+        continue;
+      }
+
       const fileName = cert.certificateUrl.split('/').pop();
       const filePath = path.join(rootDir, "uploads", "certificates", "issued", fileName);
       
