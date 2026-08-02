@@ -67,7 +67,7 @@ export const createLecture = async (req, res) => {
     if (req.files?.resource?.[0]) {
       const r = await uploadToCloudinary(req.files.resource[0].path, {
         folder: "lectures/resources",
-        resource_type: "auto",
+        resource_type: "raw",
         chunk_size: 6000000
       });
       resourceData = {
@@ -296,7 +296,7 @@ export const updateLecture = async (req, res) => {
       }
       const r = await uploadToCloudinary(req.files.resource[0].path, {
         folder: "lectures/resources",
-        resource_type: "auto",
+        resource_type: "raw",
         chunk_size: 6000000
       });
       lecture.resource = {
