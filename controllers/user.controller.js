@@ -628,6 +628,25 @@ export const updateUserIsActive = async (req, res) => {
   }
 }
 
+// Update FCM Token
+export const updateFcmToken = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { fcmToken } = req.body;
+
+    if (!fcmToken) {
+      return res.status(400).json({ success: false, message: "FCM token is required" });
+    }
+
+    await User.findByIdAndUpdate(userId, { fcmToken });
+    
+    return res.status(200).json({ success: true, message: "FCM token updated successfully" });
+  } catch (error) {
+    console.error("Update FCM token error:", error);
+    return res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+};
+
 export const getAllUsers = async (req, res) => {
   try {
     const { search, isActive, page = 1, limit = 10 } = req.query;

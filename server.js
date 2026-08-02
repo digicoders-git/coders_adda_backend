@@ -13,6 +13,12 @@ import os from 'os';
 import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Initialize Firebase Admin
+import './config/firebase.js';
+
+// Initialize Cron Jobs
+import { initCronJobs } from './config/cron.js';
+
 import { adminRoute } from './routes/admin.route.js';
 import CourseCategoryRoutes from './routes/courseCategory.routes.js';
 import instructorRoute from './routes/instructor.routes.js';
@@ -24,6 +30,7 @@ import ebooksCategoryRoute from './routes/ebooksCategory.routes.js';
 import jobRoute from './routes/job.routes.js';
 import jobV3Route from './routes/jobV3.routes.js';
 import subscriptionRoute from './routes/subscription.routes.js';
+import notificationRoute from './routes/notification.routes.js';
 import sliderRoute from './routes/slider.routes.js';
 import shortRoute from './routes/short.routes.js';
 import shortLikeRoutes from './routes/shortLike.routes.js';
@@ -90,6 +97,10 @@ app.use('/uploads', (req, res, next) => {
 try {
   await connectDB();
   console.log("✅ Database Connected Successfully");
+  
+  // Start Cron Jobs
+  initCronJobs();
+  console.log("✅ Cron Jobs Initialized");
 } catch (error) {
   console.error("❌ Database Connection Failed:", error);
 }
@@ -107,6 +118,7 @@ app.use('/ebook', ebookRoute)
 app.use('/job', jobRoute)
 app.use('/job-v3', jobV3Route)
 app.use('/subscriptions', subscriptionRoute)
+app.use("/notifications", notificationRoute);
 app.use('/sliders', sliderRoute)
 app.use('/shorts', shortRoute)
 app.use('/short-likes', shortLikeRoutes)

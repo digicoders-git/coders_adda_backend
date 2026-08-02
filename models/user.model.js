@@ -43,6 +43,12 @@ const userSchema = new mongoose.Schema({
     default: false
   },
 
+  // Firebase Cloud Messaging Token
+  fcmToken: {
+    type: String,
+    default: null
+  },
+
   // Login method
   loginMethod: {
     type: String,

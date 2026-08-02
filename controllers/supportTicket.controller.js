@@ -1,5 +1,6 @@
 import { SupportTicket } from '../models/supportTicket.model.js';
 import User from '../models/user.model.js';
+import admin from '../config/firebase.js';
 
 // Create a new support ticket (App user or guest)
 export const createSupportTicket = async (req, res) => {
@@ -122,6 +123,25 @@ export const updateSupportTicketStatus = async (req, res) => {
     }
 
     await ticket.save();
+
+    // 📩 Send Direct Notification if replied
+    if (adminReply !== undefined && ticket.userId) {
+      try {
+        const ticketUser = await User.findById(ticket.userId);
+        if (ticketUser && ticketUser.fcmToken) {
+          const message = {
+            notification: {
+              title: "Support Ticket Update 📩",
+              body: `Your ticket "${ticket.subject}" has a new update!`,
+            },
+            token: ticketUser.fcmToken,
+          };
+          await admin.messaging().send(message);
+        }
+      } catch (notifErr) {
+        console.error("Failed to send ticket reply notification:", notifErr);
+      }
+    }
 
     res.status(200).json({
       success: true,

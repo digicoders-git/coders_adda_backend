@@ -6,6 +6,8 @@ import CourseCurriculum from "../models/courseCurriculum.model.js";
 import Lecture from "../models/lecture.model.js";
 import CourseCategory from "../models/courseCategory.model.js";
 import Instructor from "../models/instructor.model.js";
+import admin from "../config/firebase.js";
+import User from "../models/user.model.js";
 
 /* ================= CREATE COURSE ================= */
 export const createCourse = async (req, res) => {
@@ -100,6 +102,24 @@ export const createCourse = async (req, res) => {
       thumbnail: thumbnailData,
       promoVideo: videoData
     });
+
+    // 🚀 Send Broadcast Notification
+    try {
+      const users = await User.find({ fcmToken: { $exists: true, $ne: null } });
+      if (users.length > 0) {
+        const tokens = users.map(u => u.fcmToken);
+        const message = {
+          notification: {
+            title: "New Course Launched! 🚀",
+            body: `${title} is now available. Enroll now!`,
+          },
+          tokens: tokens,
+        };
+        await admin.messaging().sendEachForMulticast(message);
+      }
+    } catch (notifErr) {
+      console.error("Failed to send course launch notification:", notifErr);
+    }
 
     return res.status(201).json({
       success: true,
@@ -470,6 +490,24 @@ export const updateCourse = async (req, res) => {
 
     await course.save();
 
+    // 🚀 Send Broadcast Notification
+    try {
+      const users = await User.find({ fcmToken: { $exists: true, $ne: null } });
+      if (users.length > 0) {
+        const tokens = users.map(u => u.fcmToken);
+        const message = {
+          notification: {
+            title: "New Course Launched! 🚀",
+            body: `${title} is now available. Enroll now!`,
+          },
+          tokens: tokens,
+        };
+        await admin.messaging().sendEachForMulticast(message);
+      }
+    } catch (notifErr) {
+      console.error("Failed to send course launch notification:", notifErr);
+    }
+
     return res.status(200).json({
       success: true,
       message: "Course updated successfully",
@@ -478,8 +516,7 @@ export const updateCourse = async (req, res) => {
 
   } catch (error) {
     console.error("Update Course Error:", error);
-    if (error.name === "ValidationError") {
-      const messages = Object.values(error.errors).map(err => err.message);
+    if (error.name === "ValidationError") {      const messages = Object.values(error.errors).map(err => err.message);
       return res.status(400).json({ message: "Validation Error", errors: messages });
     }
     return res.status(500).json({

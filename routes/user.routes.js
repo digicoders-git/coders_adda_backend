@@ -1,5 +1,5 @@
 import express from 'express'
-import { getAllUsers, getMyWallet, getProfile, googleLogin, requestMobileOtp, verifyMobileOtp, updateUserIsActive, updateUserProfile } from '../controllers/user.controller.js';
+import { getAllUsers, getMyWallet, getProfile, googleLogin, requestMobileOtp, verifyMobileOtp, updateUserIsActive, updateUserProfile, updateFcmToken } from '../controllers/user.controller.js';
 import userAuth from '../middleware/userAuth.js';
 import upload from "../middleware/multer.js";
 import { getMyLibrary } from '../controllers/library.controller.js';
@@ -19,6 +19,7 @@ userRoute.get('/', getAllUsers);
 // Get User Profile
 userRoute.get('/profile/:userId', getProfile);
 userRoute.put("/update-profile", userAuth, upload.single("profilePicture"), updateUserProfile);
+userRoute.post("/update-fcm-token", userAuth, updateFcmToken);
 userRoute.get("/profile", userAuth, getProfile);
 userRoute.get("/:id/status", updateUserIsActive);
 userRoute.get("/my-library", userAuth, getMyLibrary);

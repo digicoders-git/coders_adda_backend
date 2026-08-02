@@ -2,6 +2,8 @@ import Job from "../models/job.model.js";
 import JobEnrollment from "../models/jobEnrollment.model.js";
 import jwt from "jsonwebtoken";
 import Admin from "../models/admin.model.js";
+import admin from "../config/firebase.js";
+import User from "../models/user.model.js";
 
 /* ================= CREATE JOB ================= */
 export const createJob = async (req, res) => {
@@ -72,6 +74,24 @@ export const createJob = async (req, res) => {
       price: price || 0,
       priceType: priceType || "free"
     });
+
+    // 🚀 Send Broadcast Notification
+    try {
+      const users = await User.find({ fcmToken: { $exists: true, $ne: null } });
+      if (users.length > 0) {
+        const tokens = users.map(u => u.fcmToken);
+        const message = {
+          notification: {
+            title: "New Job Alert! 💼",
+            body: `${jobTitle} at ${companyName}. Apply now!`,
+          },
+          tokens: tokens,
+        };
+        await admin.messaging().sendEachForMulticast(message);
+      }
+    } catch (notifErr) {
+      console.error("Failed to send job launch notification:", notifErr);
+    }
 
     res.status(201).json({
       success: true,
