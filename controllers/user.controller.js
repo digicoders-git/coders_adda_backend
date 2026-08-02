@@ -222,36 +222,52 @@ export const googleLogin = async (req, res) => {
       });
     }
 
-    if (!mobile) {
-      return res.status(400).json({
-        success: false,
-        message: "Mobile number is required for Google login"
-      });
-    }
-
     const { id, email, name, picture, email_verified } = googleData;
 
-    // Check if mobile already exists
-    let user = await User.findOne({ mobile });
+    let user;
 
-    if (user) {
-      // Update existing user with Google data
-      user.googleId = id;
-      user.email = email;
-      user.name = name;
-      user.picture = picture;
-      user.loginMethod = 'google';
-      await user.save();
+    if (!mobile) {
+      if (email) {
+        user = await User.findOne({ email });
+      }
+      if (!user) {
+        user = await User.findOne({ googleId: id });
+      }
+
+      if (user) {
+        user.googleId = id;
+        user.picture = picture;
+        user.loginMethod = 'google';
+        await user.save();
+      } else {
+        return res.status(200).json({
+          success: false,
+          requireMobile: true,
+          message: "Mobile number is required for new registration"
+        });
+      }
     } else {
-      // Create new user with Google data
-      user = new User({
-        mobile,
-        googleId: id,
-        email,
-        name,
-        picture,
-        loginMethod: 'google'
-      });
+      // Check if mobile already exists
+      user = await User.findOne({ mobile });
+
+      if (user) {
+        // Update existing user with Google data
+        user.googleId = id;
+        user.email = email;
+        user.name = name;
+        user.picture = picture;
+        user.loginMethod = 'google';
+        await user.save();
+      } else {
+        // Create new user with Google data
+        user = new User({
+          mobile,
+          googleId: id,
+          email,
+          name,
+          picture,
+          loginMethod: 'google'
+        });
 
       // 🎁 Referral Logic
       if (referralCode) {
@@ -293,6 +309,7 @@ export const googleLogin = async (req, res) => {
 
       await user.save();
     }
+  }
 
     // Generate JWT token
     const token = generateToken(user._id);
