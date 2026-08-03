@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import Admin from "../models/admin.model.js";
 import admin from "../config/firebase.js";
 import User from "../models/user.model.js";
+import JobApplication from "../models/jobApplication.model.js";
 
 /* ================= CREATE JOB ================= */
 export const createJob = async (req, res) => {
@@ -84,6 +85,9 @@ export const createJob = async (req, res) => {
           notification: {
             title: "New Job Alert! 💼",
             body: `${jobTitle} at ${companyName}. Apply now!`,
+          },
+          data: {
+            actionLink: "/jobs"
           },
           tokens: tokens,
         };
@@ -224,6 +228,12 @@ export const getSingleJob = async (req, res) => {
     // 3. If job is free, it's considered unlocked
     if (job.priceType === "free") isUnlocked = true;
 
+    let hasApplied = false;
+    if (req.user) {
+      const applicationExists = await JobApplication.exists({ userId: req.user._id, jobId: id });
+      hasApplied = !!applicationExists;
+    }
+
     if (!isUnlocked) {
       return res.json({
         success: true,
@@ -240,12 +250,13 @@ export const getSingleJob = async (req, res) => {
           price: job.price,
           priceType: job.priceType,
           numberOfOpenings: job.numberOfOpenings,
-          locked: true
+          locked: true,
+          hasApplied: hasApplied
         }
       });
     }
 
-    res.json({ success: true, data: { ...job.toObject(), locked: false } });
+    res.json({ success: true, data: { ...job.toObject(), locked: false, hasApplied: hasApplied } });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -406,6 +417,23 @@ export const getSingleJobV3 = async (req, res) => {
 
     const jobObj = job.toObject();
 
+    let totalAllowedFreeJobs = 0;
+    if (req.user && req.user.purchaseSubscriptions) {
+      // Need to populate subscription first, or since it's already fetched we can do it via a separate query
+      // Better yet, just find the user properly populated
+      const populatedUser = await User.findById(req.user._id).populate('purchaseSubscriptions.subscription');
+      if (populatedUser && populatedUser.purchaseSubscriptions) {
+        const now = new Date();
+        for (const subRecord of populatedUser.purchaseSubscriptions) {
+          if (subRecord.endDate > now && subRecord.startDate <= now) {
+            if (subRecord.subscription && subRecord.subscription.freeJobs) {
+              totalAllowedFreeJobs += subRecord.subscription.freeJobs;
+            }
+          }
+        }
+      }
+    }
+
     if (!isUnlocked) {
       // 🔥 Hide sensitive details
       delete jobObj.companyMobile;
@@ -419,7 +447,9 @@ export const getSingleJobV3 = async (req, res) => {
           ...jobObj,
           CompanyIsHide: true,
           locked: true
-        }
+        },
+        userFreeJobUnlocksUsed: req.user ? req.user.freeJobUnlocksUsed : 0,
+        userTotalFreeJobsAllowed: totalAllowedFreeJobs
       });
     }
 
@@ -430,7 +460,8 @@ export const getSingleJobV3 = async (req, res) => {
         CompanyIsHide: false,
         locked: false
       },
-      userFreeJobUnlocksUsed: req.user ? req.user.freeJobUnlocksUsed : 0
+      userFreeJobUnlocksUsed: req.user ? req.user.freeJobUnlocksUsed : 0,
+      userTotalFreeJobsAllowed: totalAllowedFreeJobs
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
@@ -542,6 +573,21 @@ export const getAllJobsV3 = async (req, res) => {
       })
     );
 
+    let totalAllowedFreeJobs = 0;
+    if (req.user && req.user.purchaseSubscriptions) {
+      const populatedUser = await User.findById(req.user._id).populate('purchaseSubscriptions.subscription');
+      if (populatedUser && populatedUser.purchaseSubscriptions) {
+        const now = new Date();
+        for (const subRecord of populatedUser.purchaseSubscriptions) {
+          if (subRecord.endDate > now && subRecord.startDate <= now) {
+            if (subRecord.subscription && subRecord.subscription.freeJobs) {
+              totalAllowedFreeJobs += subRecord.subscription.freeJobs;
+            }
+          }
+        }
+      }
+    }
+
     res.json({
       success: true,
       total,
@@ -549,7 +595,8 @@ export const getAllJobsV3 = async (req, res) => {
       limit,
       totalPages: Math.ceil(total / limit),
       data: jobsWithStatus,
-      userFreeJobUnlocksUsed: req.user ? req.user.freeJobUnlocksUsed : 0
+      userFreeJobUnlocksUsed: req.user ? req.user.freeJobUnlocksUsed : 0,
+      userTotalFreeJobsAllowed: totalAllowedFreeJobs
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });

@@ -12,16 +12,26 @@ const serviceAccountPath = path.join(__dirname, 'serviceAccountKey.json');
 
 let messagingInstance = null;
 
-if (fs.existsSync(serviceAccountPath)) {
-  const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+let serviceAccount = null;
 
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  try {
+    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+  } catch (err) {
+    console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT from environment variables.");
+  }
+} else if (fs.existsSync(serviceAccountPath)) {
+  serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+}
+
+if (serviceAccount) {
   const app = initializeApp({
     credential: cert(serviceAccount)
   });
   messagingInstance = getMessaging(app);
   console.log('Firebase Admin initialized successfully');
 } else {
-  console.warn('Firebase Admin is not initialized. Please provide serviceAccountKey.json in the config folder.');
+  console.warn('Firebase Admin is not initialized. Please provide FIREBASE_SERVICE_ACCOUNT in .env or serviceAccountKey.json in the config folder.');
 }
 
 const admin = {

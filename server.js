@@ -31,6 +31,7 @@ import ebookRoute from './routes/ebook.routes.js';
 import ebooksCategoryRoute from './routes/ebooksCategory.routes.js';
 import jobRoute from './routes/job.routes.js';
 import jobV3Route from './routes/jobV3.routes.js';
+import jobApplicationRoute from './routes/jobApplication.routes.js';
 import subscriptionRoute from './routes/subscription.routes.js';
 import notificationRoute from './routes/notification.routes.js';
 import sliderRoute from './routes/slider.routes.js';
@@ -83,7 +84,7 @@ const uploadDir = path.resolve(rootDir, "uploads");
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
-const subDirs = ["reviews", "blogs", "courses", "lectures", "users", "sliders", "certificates", "instructors", "services"];
+const subDirs = ["reviews", "blogs", "courses", "lectures", "users", "sliders", "certificates", "quiz-certificates", "instructors", "services", "ebooks/pdfs", "ebooks/images"];
 subDirs.forEach(dir => {
   const fullPath = path.resolve(uploadDir, dir);
   if (!fs.existsSync(fullPath)) fs.mkdirSync(fullPath, { recursive: true });
@@ -118,6 +119,7 @@ app.use('/ebooks-category', ebooksCategoryRoute)
 app.use('/ebook', ebookRoute)
 app.use('/job', jobRoute)
 app.use('/job-v3', jobV3Route)
+app.use('/job-applications', jobApplicationRoute)
 app.use('/subscriptions', subscriptionRoute)
 app.use("/notifications", notificationRoute);
 app.use('/sliders', sliderRoute)

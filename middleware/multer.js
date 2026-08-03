@@ -9,7 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     const isRender = process.env.RENDER === "true";
-    const rootDir = isRender ? os.tmpdir() : __dirname;
+    const rootDir = isRender ? os.tmpdir() : path.resolve(__dirname, "..");
     let dest = path.resolve(rootDir, "uploads");
 
 
@@ -33,6 +33,12 @@ const storage = multer.diskStorage({
         dest = path.resolve(dest, "reviews");
       } else if (req.originalUrl.includes("blog")) {
         dest = path.resolve(dest, "blogs");
+      } else if (req.originalUrl.includes("ebook")) {
+        dest = path.resolve(dest, "ebooks/images");
+      }
+    } else if (file.fieldname === "pdf") {
+      if (req.originalUrl.includes("ebook")) {
+        dest = path.resolve(dest, "ebooks/pdfs");
       }
     } else if (file.fieldname === "icon") {
       if (req.originalUrl.includes("service")) {
@@ -46,6 +52,8 @@ const storage = multer.diskStorage({
       } else {
         dest = path.resolve(dest, "users/profile_pictures");
       }
+    } else if (file.fieldname === "resume") {
+      dest = path.resolve(dest, "job_applications/resumes");
     }
 
 

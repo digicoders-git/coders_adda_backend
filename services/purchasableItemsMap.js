@@ -43,30 +43,36 @@ export const purchasableItemsMap = {
   subscription: {
     model: Subscription,
     priceField: "price",
-    priceTypeField: "priceType",
+    priceTypeField: "planPricingType",
     unlock: async (user, itemId) => {
-      // Check for existing subscription (handling object structure)
-      const alreadySubscribed = user.purchaseSubscriptions.some(
-        (sub) => sub.subscription.toString() === itemId.toString()
+      const subscription = await Subscription.findById(itemId);
+      if (!subscription) return;
+
+      const durationInMonths = parseInt(subscription.duration) || 1;
+      const startDate = new Date();
+      const endDate = new Date(startDate);
+      endDate.setMonth(endDate.getMonth() + durationInMonths);
+
+      // 🔥 One Plan Per User: Replace existing subscription instead of blocking
+      const existingIndex = user.purchaseSubscriptions.findIndex(
+        (sub) => sub.subscription && sub.subscription.toString() === itemId.toString()
       );
 
-      if (!alreadySubscribed) {
-        const subscription = await Subscription.findById(itemId);
-        if (subscription) {
-          // Parse duration (ensure it handles strings like "3 Months")
-          const durationInMonths = parseInt(subscription.duration) || 1;
-
-          const startDate = new Date();
-          const endDate = new Date(startDate);
-          endDate.setMonth(endDate.getMonth() + durationInMonths);
-
-          user.purchaseSubscriptions.push({
-            subscription: itemId,
-            startDate,
-            endDate
-          });
-        }
+      if (existingIndex !== -1) {
+        // Same plan exists — just update dates (renew)
+        user.purchaseSubscriptions[existingIndex].startDate = startDate;
+        user.purchaseSubscriptions[existingIndex].endDate = endDate;
+      } else {
+        // Different plan or no plan — replace all with new one (1 plan per user)
+        user.purchaseSubscriptions = [{
+          subscription: itemId,
+          startDate,
+          endDate
+        }];
       }
+
+      // Reset free job unlocks when a new plan is activated
+      user.freeJobUnlocksUsed = 0;
     }
   },
 

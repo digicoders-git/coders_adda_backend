@@ -1,5 +1,6 @@
 import Quiz from "../models/quiz.model.js";
 import QuestionTopic from "../models/questionTopic.model.js";
+import { sendQuizNotification } from "./notification.controller.js";
 
 /* ================= CREATE QUIZ ================= */
 export const createQuiz = async (req, res) => {
@@ -48,6 +49,9 @@ export const createQuiz = async (req, res) => {
       message: "Quiz created successfully",
       data: quiz
     });
+
+    // 🔔 Auto-notify all users about new quiz (fire-and-forget)
+    sendQuizNotification(quiz).catch(e => console.error('Quiz notification error:', e));
   } catch (error) {
     res.status(500).json({
       success: false,

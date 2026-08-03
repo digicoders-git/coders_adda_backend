@@ -6,6 +6,8 @@ import {
   getAdminNotifications,
   deleteNotification,
   getNotificationStats,
+  getAdminUsersForPicker,
+  getAdminCoursesForPicker,
   getMyNotifications,
   getUnreadCount,
   markAsRead,
@@ -21,6 +23,10 @@ router.post('/admin/create', verifyAdminToken, createNotification);
 router.get('/admin/list', verifyAdminToken, getAdminNotifications);
 router.delete('/admin/:id', verifyAdminToken, deleteNotification);
 router.get('/admin/stats', verifyAdminToken, getNotificationStats);
+
+// Admin Picker APIs (for user selector & course selector in Create Notification)
+router.get('/admin/users', verifyAdminToken, getAdminUsersForPicker);
+router.get('/admin/courses', verifyAdminToken, getAdminCoursesForPicker);
 
 // --- USER ROUTES ---
 router.get('/my-notifications', userAuth, getMyNotifications);

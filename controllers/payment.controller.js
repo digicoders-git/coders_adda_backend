@@ -283,9 +283,7 @@ export const payWithWallet = async (req, res) => {
     if ((itemType === "job" || itemType === "jobV2" || itemType === "jobV3") && user.purchaseJobs.includes(itemId)) {
       return res.status(400).json({ success: false, message: "You have already unlocked this job." });
     }
-    if (itemType === "subscription" && user.purchaseSubscriptions.some(sub => sub.subscription.toString() === itemId.toString())) {
-      return res.status(400).json({ success: false, message: "You already have this subscription active." });
-    }
+    // Note: Subscription allows re-purchase/upgrade — handled in unlock logic
 
     // 🔥 Check Balance
     if (user.walletBalance < finalAmount) {

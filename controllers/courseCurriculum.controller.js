@@ -1,6 +1,7 @@
 import Lecture from "../models/lecture.model.js";
 import CourseCurriculum from "../models/courseCurriculum.model.js";
 import mongoose from "mongoose";
+import { sendCourseUpdateNotification } from "./notification.controller.js";
 
 /* ================= CREATE ONE TOPIC ================= */
 export const createTopic = async (req, res) => {
@@ -21,6 +22,9 @@ export const createTopic = async (req, res) => {
       course,
       topic
     });
+
+    // 🔔 Auto-notify enrolled students about new topic
+    sendCourseUpdateNotification(course, 'NewTopic', topic).catch(e => console.error('Notification error:', e));
 
     return res.status(201).json({
       success: true,

@@ -1,8 +1,8 @@
 import Lecture from "../models/lecture.model.js";
 import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
-
 import UserProgress from "../models/UserProgress.js";
+import { sendCourseUpdateNotification } from "./notification.controller.js";
 
 const uploadToCloudinary = (filePath, options) => {
   return new Promise((resolve, reject) => {
@@ -91,6 +91,9 @@ export const createLecture = async (req, res) => {
       resource: resourceData
     });
     console.log("LECTURE SAVED:", lecture.video, lecture.thumbnail);
+
+    // 🔔 Auto-notify enrolled students about new lecture
+    sendCourseUpdateNotification(course, 'NewLecture', title).catch(e => console.error('Notification error:', e));
 
     return res.status(201).json({
       success: true,
