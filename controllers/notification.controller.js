@@ -224,7 +224,7 @@ export const processNotification = async (notification) => {
 // --- AUTO TRIGGER: Course Update Notification ---
 // Called automatically when lecture/topic/notes/PDF is added to a course
 // type: 'NewLecture' | 'NewTopic' | 'NewNotes' | 'NewTest'
-export const sendCourseUpdateNotification = async (courseId, type, resourceTitle) => {
+export const sendCourseUpdateNotification = async (courseId, type, resourceTitle, customImage = '') => {
   try {
     const course = await Course.findById(courseId).select('title thumbnail');
     if (!course) return;
@@ -234,6 +234,7 @@ export const sendCourseUpdateNotification = async (courseId, type, resourceTitle
       NewTopic:   { emoji: '📚', label: 'New Topic Added' },
       NewNotes:   { emoji: '📄', label: 'New Notes/PDF Added' },
       NewTest:    { emoji: '📝', label: 'New Test Added' },
+      NewLive:    { emoji: '🔴', label: 'Live Stream Started' },
     };
 
     const info = typeLabels[type] || { emoji: '🔔', label: 'Course Updated' };
@@ -241,7 +242,7 @@ export const sendCourseUpdateNotification = async (courseId, type, resourceTitle
     const notification = new Notification({
       title: `${info.emoji} ${info.label} — ${course.title}`,
       body: `"${resourceTitle}" is now available in your course. Start learning now!`,
-      image: course.thumbnail?.url || '',
+      image: customImage || course.thumbnail?.url || '',
       actionLink: `/course-detail/${courseId}`,
       priority: 'Normal',
       targetGroup: 'CourseEnrolled',

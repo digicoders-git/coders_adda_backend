@@ -24,10 +24,15 @@ export const createLecture = async (req, res) => {
       duration,
       description,
       privacy,
-      isActive
+      isActive,
+      contentType,
+      liveUrl,
+      liveStatus,
+      scheduledAt,
+      quizId
     } = req.body;
 
-    if (!course || !topic || !srNo || !title || !duration) {
+    if (!course || !topic || !srNo || !title) {
       return res.status(400).json({ message: "Required fields missing" });
     }
 
@@ -82,18 +87,32 @@ export const createLecture = async (req, res) => {
       topic,
       srNo,
       title,
-      duration,
+      duration: duration || "",
       description,
       privacy,
       isActive,
+      contentType: contentType || "video",
+      liveUrl,
+      liveStatus,
+      scheduledAt,
+      quizId: quizId || null,
       video: videoData,
       thumbnail: thumbData,
       resource: resourceData
     });
     console.log("LECTURE SAVED:", lecture.video, lecture.thumbnail);
 
-    // 🔔 Auto-notify enrolled students about new lecture
-    sendCourseUpdateNotification(course, 'NewLecture', title).catch(e => console.error('Notification error:', e));
+    // 🔔 Auto-notify enrolled students about new content
+    let notificationType = 'NewLecture';
+    if (contentType === 'live') {
+      notificationType = 'NewLive';
+    } else if (contentType === 'pdf') {
+      notificationType = 'NewNotes';
+    } else if (contentType === 'test' || contentType === 'subjective_test') {
+      notificationType = 'NewTest';
+    }
+
+    sendCourseUpdateNotification(course, notificationType, title, thumbData.url || '').catch(e => console.error('Notification error:', e));
 
     return res.status(201).json({
       success: true,
@@ -230,8 +249,15 @@ export const updateLecture = async (req, res) => {
       isActive,
       removeVideo,
       removeThumbnail,
-      removeResource
+      removeResource,
+      contentType,
+      liveUrl,
+      liveStatus,
+      scheduledAt,
+      quizId
     } = req.body;
+
+    const oldLiveStatus = lecture.liveStatus;
 
     if (course !== undefined) lecture.course = course;
     if (topic !== undefined) lecture.topic = topic;
@@ -241,6 +267,11 @@ export const updateLecture = async (req, res) => {
     if (description !== undefined) lecture.description = description;
     if (privacy !== undefined) lecture.privacy = privacy;
     if (isActive !== undefined) lecture.isActive = isActive;
+    if (contentType !== undefined) lecture.contentType = contentType;
+    if (liveUrl !== undefined) lecture.liveUrl = liveUrl;
+    if (liveStatus !== undefined) lecture.liveStatus = liveStatus;
+    if (scheduledAt !== undefined) lecture.scheduledAt = scheduledAt;
+    if (quizId !== undefined) lecture.quizId = quizId;
 
     const baseUrl = `${req.protocol}://${req.get("host")}`;
 
@@ -318,6 +349,15 @@ export const updateLecture = async (req, res) => {
 
 
     await lecture.save();
+
+    if (lecture.contentType === 'live' && lecture.liveStatus === 'live' && oldLiveStatus !== 'live') {
+      sendCourseUpdateNotification(
+        lecture.course,
+        'NewLive',
+        `Live Now: ${lecture.title}`,
+        lecture.thumbnail?.url || ''
+      ).catch(e => console.error('Notification error:', e));
+    }
 
     return res.status(200).json({
       success: true,

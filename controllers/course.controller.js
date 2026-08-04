@@ -328,7 +328,12 @@ export const getSingleCourse = async (req, res) => {
           thumbnailUrl: l.thumbnail?.url || "",
           isActive: l.isActive,
           status: l.isActive ? "Active" : "Disabled",
-          description: l.description
+          description: l.description,
+          contentType: l.contentType || "video",
+          liveUrl: l.liveUrl || "",
+          liveStatus: l.liveStatus || "scheduled",
+          scheduledAt: l.scheduledAt || null,
+          quizId: l.quizId || null
         }))
       };
     });
