@@ -186,28 +186,49 @@ export const getLecturesByTopic = async (req, res) => {
     const { topicId } = req.params;
     const lectures = await Lecture.find({ topic: topicId }).sort({ srNo: 1 }).lean();
 
-    // Check progress for authenticated users
-    if (req.user && req.user._id) {
-      const courseId = lectures.length > 0 ? lectures[0].course : null;
-      
-      if (courseId) {
-        const userProgresses = await UserProgress.find({
-          user: req.user._id,
-          course: courseId
+    const courseId = lectures.length > 0 ? lectures[0].course : null;
+
+    // Check if user is enrolled in this course
+    let isEnrolled = false;
+    if (req.user && req.user._id && courseId) {
+      const user = await import("../models/user.model.js").then(m => m.default);
+      const dbUser = await user.findById(req.user._id).select("purchaseCourses").lean();
+      isEnrolled = dbUser?.purchaseCourses?.some(
+        id => id.toString() === courseId.toString()
+      ) ?? false;
+    }
+
+    // Check progress for enrolled users
+    if (isEnrolled && req.user && req.user._id && courseId) {
+      const userProgresses = await UserProgress.find({
+        user: req.user._id,
+        course: courseId
+      });
+      if (userProgresses && userProgresses.length > 0) {
+        lectures.forEach(lecture => {
+          const lectureProgress = userProgresses.find(
+            p => p.lecture.toString() === lecture._id.toString()
+          );
+          lecture.isCompleted = lectureProgress ? lectureProgress.isCompleted : false;
         });
-        
-        if (userProgresses && userProgresses.length > 0) {
-          lectures.forEach(lecture => {
-            const lectureProgress = userProgresses.find(
-              p => p.lecture.toString() === lecture._id.toString()
-            );
-            lecture.isCompleted = lectureProgress ? lectureProgress.isCompleted : false;
-          });
-        }
       }
     }
 
-    return res.status(200).json({ success: true, lectures, data: lectures, total: lectures.length });
+    // Hide video/resource URLs for locked lectures if user is NOT enrolled
+    const sanitizedLectures = lectures.map(lecture => {
+      const isLocked = lecture.privacy === "locked";
+      if (isLocked && !isEnrolled) {
+        return {
+          ...lecture,
+          video: { url: "", public_id: "" },
+          resource: { url: "", public_id: "" },
+          liveUrl: "",
+        };
+      }
+      return lecture;
+    });
+
+    return res.status(200).json({ success: true, lectures: sanitizedLectures, data: sanitizedLectures, total: sanitizedLectures.length });
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
