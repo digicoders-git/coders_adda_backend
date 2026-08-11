@@ -27,7 +27,6 @@ const lectureSchema = new mongoose.Schema({
 
   duration: {
     type: String, // "10 min", "1:20:30"
-    required: true
   },
 
   description: {
@@ -43,6 +42,31 @@ const lectureSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+
+  contentType: {
+    type: String,
+    enum: ["video", "pdf", "live", "youtube_zoom", "webinar", "test", "subjective_test"],
+    default: "video"
+  },
+
+  liveUrl: {
+    type: String
+  },
+
+  liveStatus: {
+    type: String,
+    enum: ["scheduled", "live", "ended"],
+    default: "scheduled"
+  },
+
+  scheduledAt: {
+    type: Date
+  },
+
+  quizId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Quiz"
   },
 
   // ================= MEDIA =================

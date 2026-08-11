@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
 import path from 'path';
@@ -16,7 +19,11 @@ let serviceAccount = null;
 
 if (process.env.FIREBASE_SERVICE_ACCOUNT) {
   try {
-    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    let raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+    if (raw.startsWith("'") && raw.endsWith("'")) {
+      raw = raw.slice(1, -1);
+    }
+    serviceAccount = JSON.parse(raw);
   } catch (err) {
     console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT from environment variables.");
   }

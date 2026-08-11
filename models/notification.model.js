@@ -22,7 +22,7 @@ export const notificationSchema = new mongoose.Schema({
   },
   targetGroup: {
     type: String,
-    enum: ['All', 'Premium', 'Free', 'Specific', 'CourseEnrolled'],
+    enum: ['All', 'Premium', 'Free', 'Specific', 'CourseEnrolled', 'Instructors'],
     default: 'All'
   },
   targetUsers: [{
@@ -67,6 +67,26 @@ export const userNotificationSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 export const UserNotification = mongoose.model('UserNotification', userNotificationSchema);
+
+export const instructorNotificationSchema = new mongoose.Schema({
+  instructorId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Instructor',
+    required: true
+  },
+  notificationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Notification',
+    required: true
+  },
+  isRead: {
+    type: Boolean,
+    default: false
+  }
+}, { timestamps: true });
+
+export const InstructorNotification = mongoose.model('InstructorNotification', instructorNotificationSchema);
+
 
 export const notificationSettingSchema = new mongoose.Schema({
   userId: {

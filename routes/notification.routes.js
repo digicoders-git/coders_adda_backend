@@ -16,10 +16,12 @@ import {
   updateUserNotificationSettings
 } from '../controllers/notification.controller.js';
 
+import upload from '../middleware/multer.js';
+
 const router = express.Router();
 
 // --- ADMIN ROUTES ---
-router.post('/admin/create', verifyAdminToken, createNotification);
+router.post('/admin/create', verifyAdminToken, upload.single('image'), createNotification);
 router.get('/admin/list', verifyAdminToken, getAdminNotifications);
 router.delete('/admin/:id', verifyAdminToken, deleteNotification);
 router.get('/admin/stats', verifyAdminToken, getNotificationStats);

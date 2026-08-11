@@ -1,5 +1,7 @@
-import { Notification, UserNotification, NotificationSetting } from '../models/notification.model.js';
+import { Notification, UserNotification, NotificationSetting, InstructorNotification } from '../models/notification.model.js';
 import User from '../models/user.model.js';
+import Instructor from '../models/instructor.model.js';
+import cloudinary from '../config/cloudinary.js';
 import admin from '../config/firebase.js';
 import Course from '../models/course.model.js';
 import Payment from '../models/payment.model.js';
@@ -8,10 +10,25 @@ import Payment from '../models/payment.model.js';
 
 export const createNotification = async (req, res) => {
   try {
-    const { title, body, image, actionLink, priority, targetGroup, targetUsers, targetCourse, scheduledFor, type } = req.body;
+    const { title, body, actionLink, priority, targetGroup, targetUsers, targetCourse, scheduledFor, type } = req.body;
+
+    let imageUrl = req.body.image || '';
+    if (req.file) {
+      const uploadResult = await cloudinary.uploader.upload(req.file.path, { folder: 'notifications' });
+      if (uploadResult && uploadResult.secure_url) {
+        imageUrl = uploadResult.secure_url;
+      }
+    }
+
+    // Parse arrays that might come as strings from FormData
+    let parsedTargetUsers = targetUsers;
+    if (typeof targetUsers === 'string') {
+      try { parsedTargetUsers = JSON.parse(targetUsers); } catch (e) { parsedTargetUsers = [targetUsers]; }
+    }
 
     const notification = new Notification({
-      title, body, image, actionLink, priority, targetGroup, targetUsers, targetCourse, scheduledFor, type,
+      title, body, image: imageUrl, actionLink, priority, targetGroup, 
+      targetUsers: parsedTargetUsers, targetCourse, scheduledFor, type,
       status: scheduledFor ? 'Pending' : 'Sent'
     });
     
@@ -142,19 +159,32 @@ export const getAdminCoursesForPicker = async (req, res) => {
 // --- CORE PROCESSOR ---
 export const processNotification = async (notification) => {
   try {
+    if (notification.targetGroup === 'Instructors') {
+      const instructors = await Instructor.find({ isActive: true }).select('_id');
+      if (instructors.length > 0) {
+        const instructorNotifications = instructors.map(inst => ({
+          instructorId: inst._id,
+          notificationId: notification._id,
+          isRead: false
+        }));
+        await InstructorNotification.insertMany(instructorNotifications, { ordered: false }).catch(() => {});
+      }
+      notification.status = 'Sent';
+      await notification.save();
+      return;
+    }
+
     let usersQuery = {};
     
     if (notification.targetGroup === 'Specific' && notification.targetUsers?.length) {
       // Specific users
       usersQuery._id = { $in: notification.targetUsers };
     } else if (notification.targetGroup === 'CourseEnrolled' && notification.targetCourse) {
-      // Use Payment model to find enrolled users (Course model has no enrolledStudents field)
-      const payments = await Payment.find({
-        itemType: 'course',
-        itemId: notification.targetCourse,
-        status: 'success'
-      }).select('user');
-      const enrolledUserIds = payments.map(p => p.user);
+      // Find users who have this course in their purchaseCourses array
+      const enrolledUsers = await User.find({
+        purchaseCourses: notification.targetCourse
+      }).select('_id');
+      const enrolledUserIds = enrolledUsers.map(u => u._id);
       if (enrolledUserIds.length === 0) return; // No enrolled users
       usersQuery._id = { $in: enrolledUserIds };
     } else if (notification.targetGroup === 'Premium') {
@@ -205,9 +235,20 @@ export const processNotification = async (notification) => {
       const chunkSize = 500;
       for (let i = 0; i < tokens.length; i += chunkSize) {
         const chunkTokens = tokens.slice(i, i + chunkSize);
-        await admin.messaging().sendEachForMulticast({ ...message, tokens: chunkTokens }).catch(err => {
-          console.error('FCM send error:', err.message);
-        });
+        await admin.messaging().sendEachForMulticast({ ...message, tokens: chunkTokens })
+          .then((response) => {
+            console.log(`FCM send success: ${response.successCount}, failure: ${response.failureCount}`);
+            if (response.failureCount > 0) {
+              response.responses.forEach((resp, idx) => {
+                if (!resp.success) {
+                  console.error(`FCM failure for token ${chunkTokens[idx]}:`, resp.error);
+                }
+              });
+            }
+          })
+          .catch(err => {
+            console.error('FCM send error:', err.message);
+          });
       }
     }
     
@@ -224,7 +265,7 @@ export const processNotification = async (notification) => {
 // --- AUTO TRIGGER: Course Update Notification ---
 // Called automatically when lecture/topic/notes/PDF is added to a course
 // type: 'NewLecture' | 'NewTopic' | 'NewNotes' | 'NewTest'
-export const sendCourseUpdateNotification = async (courseId, type, resourceTitle) => {
+export const sendCourseUpdateNotification = async (courseId, type, resourceTitle, customImage = '') => {
   try {
     const course = await Course.findById(courseId).select('title thumbnail');
     if (!course) return;
@@ -234,6 +275,7 @@ export const sendCourseUpdateNotification = async (courseId, type, resourceTitle
       NewTopic:   { emoji: '📚', label: 'New Topic Added' },
       NewNotes:   { emoji: '📄', label: 'New Notes/PDF Added' },
       NewTest:    { emoji: '📝', label: 'New Test Added' },
+      NewLive:    { emoji: '🔴', label: 'Live Stream Started' },
     };
 
     const info = typeLabels[type] || { emoji: '🔔', label: 'Course Updated' };
@@ -241,7 +283,7 @@ export const sendCourseUpdateNotification = async (courseId, type, resourceTitle
     const notification = new Notification({
       title: `${info.emoji} ${info.label} — ${course.title}`,
       body: `"${resourceTitle}" is now available in your course. Start learning now!`,
-      image: course.thumbnail?.url || '',
+      image: customImage || course.thumbnail?.url || '',
       actionLink: `/course-detail/${courseId}`,
       priority: 'Normal',
       targetGroup: 'CourseEnrolled',
@@ -279,6 +321,30 @@ export const sendQuizNotification = async (quiz) => {
     console.log(`✅ Quiz notification sent: ${quiz.title}`);
   } catch (err) {
     console.error('❌ Quiz notification failed:', err.message);
+  }
+};
+
+// --- AUTO TRIGGER: Ebook Notification ---
+// Called when a new Ebook is created — notify ALL users
+export const sendEbookNotification = async (ebook) => {
+  try {
+    const notification = new Notification({
+      title: `📖 New E-Book Published: ${ebook.title}`,
+      body: `Check out our new e-book by ${ebook.authorName}. ${ebook.priceType === 'free' ? 'It is completely FREE!' : 'Grab your copy now!'}`,
+      image: ebook.image?.url || '',
+      actionLink: `/ebook-details/${ebook._id}`,
+      priority: 'Normal',
+      targetGroup: 'All',
+      type: 'General',
+      status: 'Sent'
+    });
+
+    await notification.save();
+    await processNotification(notification);
+
+    console.log(`✅ Ebook notification sent: ${ebook.title}`);
+  } catch (err) {
+    console.error('❌ Ebook notification failed:', err.message);
   }
 };
 
