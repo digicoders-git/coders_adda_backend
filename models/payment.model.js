@@ -10,7 +10,7 @@ const paymentSchema = new mongoose.Schema(
 
     itemType: {
       type: String,
-      enum: ["course", "ebook", "job", "subscription", "referral_reward", "wallet_withdrawal"],
+      enum: ["course", "ebook", "job", "subscription", "lecture", "referral_reward", "wallet_withdrawal"],
       required: true
     },
 

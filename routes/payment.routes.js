@@ -1,6 +1,6 @@
 import express from "express";
 import userAuth from "../middleware/userAuth.js";
-import { createOrder, verifyPayment, recordPaymentFailure, payWithWallet, topupWallet, withdrawWallet, downloadTransactionSlip } from "../controllers/payment.controller.js";
+import { createOrder, verifyPayment, recordPaymentFailure, payWithWallet, topupWallet, withdrawWallet, downloadTransactionSlip, getMyPaymentHistory } from "../controllers/payment.controller.js";
 import { freeEnroll } from "../controllers/enroll.controller.js";
 
 const paymentRoute = express.Router();
@@ -13,5 +13,6 @@ paymentRoute.post("/wallet-pay", userAuth, payWithWallet);
 paymentRoute.post("/topup", userAuth, topupWallet);
 paymentRoute.post("/withdraw", userAuth, withdrawWallet);
 paymentRoute.get("/slip/:id", downloadTransactionSlip);
+paymentRoute.get("/history", userAuth, getMyPaymentHistory);
 
 export default paymentRoute;

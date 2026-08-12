@@ -5,8 +5,17 @@ const runTest = async () => {
   try {
     await mongoose.connect('mongodb+srv://digicodersdevelopment_db_user:AdhYWINPnWoEoeZn@coddersadda.mv9qows.mongodb.net/CodersAdda?appName=CoddersAdda');
     
-    const users = await User.find({}).select('_id name email fcmToken purchaseCourses');
-    users.forEach(u => console.log(`User: ${u.name}, Enrolled: ${u.purchaseCourses.length}, Token: ${u.fcmToken}`));
+    const targetCourse = "6a704bd69df7e66a8071781f";
+    
+    const enrolledUsers = await User.find({
+      purchaseCourses: targetCourse
+    }).select('_id');
+    
+    console.log('Enrolled Users:', enrolledUsers.length);
+    console.log(enrolledUsers);
+    
+    const allUsers = await User.find({}).select('_id');
+    console.log('All Users:', allUsers.length);
     
     process.exit(0);
   } catch (error) {

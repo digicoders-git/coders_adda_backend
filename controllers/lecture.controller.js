@@ -3,6 +3,7 @@ import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
 import UserProgress from "../models/UserProgress.js";
 import { sendCourseUpdateNotification } from "./notification.controller.js";
+import LecturePurchase from "../models/lecturePurchase.model.js";
 
 const uploadToCloudinary = (filePath, options) => {
   return new Promise((resolve, reject) => {
@@ -43,7 +44,13 @@ export const createLecture = async (req, res) => {
       duration,
       description,
       privacy,
-      isActive
+      isActive,
+      price,
+      contentType,
+      liveUrl,
+      liveStatus,
+      scheduledAt,
+      quizId
     } = req.body;
 
     if (!course || !topic || !srNo || !title || !duration) {
@@ -90,6 +97,12 @@ export const createLecture = async (req, res) => {
       description,
       privacy,
       isActive,
+      price: price !== undefined ? Number(price) : 0,
+      contentType: contentType || "video",
+      liveUrl: liveUrl || "",
+      liveStatus: liveStatus || "scheduled",
+      scheduledAt: scheduledAt || null,
+      quizId: quizId || null,
       video: videoData,
       thumbnail: thumbData,
       resource: resourceData
@@ -173,17 +186,53 @@ export const getLecturesByTopic = async (req, res) => {
 
     const courseId = lectures.length > 0 ? lectures[0].course : null;
 
-    // Check if user is enrolled
     const isAdmin = req.admin ? true : false;
-    const isEnrolled = req.user && req.user._id && courseId 
-      && req.user.purchaseCourses 
+    const isEnrolled = req.user && req.user._id && courseId
+      && req.user.purchaseCourses
       && req.user.purchaseCourses.some(id => id.toString() === courseId.toString());
 
-    // Sanitize locked lectures for unauthorized users
+    // Get all paid lecture purchases for this user in one query
+    let purchasedLectureIds = new Set();
+    if (req.user && req.user._id) {
+      const purchases = await LecturePurchase.find({
+        user: req.user._id,
+        lecture: { $in: lectures.map(l => l._id) }
+      }).select('lecture').lean();
+      purchasedLectureIds = new Set(purchases.map(p => p.lecture.toString()));
+    }
+
+    // Sanitize lectures based on privacy + purchase status
     lectures.forEach(lecture => {
-      if (lecture.privacy === "locked" && !isEnrolled && !isAdmin) {
-        if (lecture.video) lecture.video = null;
-        if (lecture.resource) lecture.resource = null;
+      if (isAdmin) return; // Admin sees everything
+
+      if (lecture.privacy === "locked") {
+        const hasPaid = purchasedLectureIds.has(lecture._id.toString());
+        const lecturePrice = typeof lecture.price === 'number' ? lecture.price : 0;
+        const hasPaidPrice = lecturePrice > 0;
+
+        if (hasPaidPrice) {
+          // Paid lecture — needs separate purchase even if enrolled in course
+          if (!hasPaid) {
+            lecture.isPaidLecture = true;
+            lecture.lecturePrice = lecturePrice;
+            lecture.video = null;
+            lecture.resource = null;
+          } else {
+            // User has purchased the lecture
+            lecture.privacy = "unlocked";
+            lecture.isPaidLecture = false;
+          }
+        } else {
+          // Free-to-enrolled lecture — just needs course enrollment
+          if (!isEnrolled) {
+            lecture.isPaidLecture = false;
+            lecture.video = null;
+            lecture.resource = null;
+          } else {
+            // User is enrolled in the course
+            lecture.privacy = "unlocked";
+          }
+        }
       }
     });
 
@@ -194,7 +243,7 @@ export const getLecturesByTopic = async (req, res) => {
           user: req.user._id,
           course: courseId
         });
-        
+
         if (userProgresses && userProgresses.length > 0) {
           lectures.forEach(lecture => {
             const lectureProgress = userProgresses.find(
@@ -211,6 +260,20 @@ export const getLecturesByTopic = async (req, res) => {
     return res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 };
+
+/* ================= CHECK LECTURE PURCHASE ================= */
+export const checkLecturePurchase = async (req, res) => {
+  try {
+    const { lectureId } = req.params;
+    const userId = req.user._id;
+
+    const purchase = await LecturePurchase.findOne({ user: userId, lecture: lectureId });
+    return res.status(200).json({ success: true, purchased: !!purchase });
+  } catch (error) {
+    return res.status(500).json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
 
 /* ================= GET SINGLE LECTURE ================= */
 export const getSingleLecture = async (req, res) => {
@@ -258,6 +321,12 @@ export const updateLecture = async (req, res) => {
       description,
       privacy,
       isActive,
+      price,
+      contentType,
+      liveUrl,
+      liveStatus,
+      scheduledAt,
+      quizId,
       removeVideo,
       removeThumbnail,
       removeResource
@@ -271,6 +340,12 @@ export const updateLecture = async (req, res) => {
     if (description !== undefined) lecture.description = description;
     if (privacy !== undefined) lecture.privacy = privacy;
     if (isActive !== undefined) lecture.isActive = isActive;
+    if (price !== undefined) lecture.price = Number(price);
+    if (contentType !== undefined) lecture.contentType = contentType;
+    if (liveUrl !== undefined) lecture.liveUrl = liveUrl;
+    if (liveStatus !== undefined) lecture.liveStatus = liveStatus;
+    if (scheduledAt !== undefined) lecture.scheduledAt = scheduledAt;
+    if (quizId !== undefined) lecture.quizId = quizId || null;
 
     const baseUrl = `${req.protocol}://${req.get("host")}`;
 

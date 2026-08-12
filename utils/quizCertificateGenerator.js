@@ -74,7 +74,7 @@ export const generateQuizCertificate = async (userId, quizId, template, extraDat
       const fontWeight = config.bold   ? "bold "    : "";
       ctx.font         = `${fontStyle}${fontWeight}${config.fontSize || "30px"} ${config.fontFamily || "Arial"}`;
       ctx.fillStyle    = config.textColor || "#000000";
-      ctx.textAlign    = "center";
+      ctx.textAlign    = config.textAlign || "center";
       ctx.textBaseline = "middle";
 
       const x = parseFloat(config.horizontalPosition);

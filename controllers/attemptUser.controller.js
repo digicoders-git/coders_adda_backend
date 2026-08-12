@@ -22,6 +22,22 @@ export const createAttempt = async (req, res) => {
       return res.status(404).json({ success: false, message: "Quiz not found" });
     }
 
+    if (quiz.type === 'Test') {
+      const existingAttempt = await AttemptUser.findOne({ studentId, quizId });
+      if (existingAttempt) {
+        return res.status(400).json({ success: false, message: "Test already attempted. Re-attempts are not allowed." });
+      }
+
+      if (quiz.scheduledStartTime) {
+        const startTime = new Date(quiz.scheduledStartTime);
+        const durationMs = (quiz.duration || 0) * 60000;
+        const endTime = new Date(startTime.getTime() + durationMs);
+        if (new Date() > endTime) {
+          return res.status(400).json({ success: false, message: "Test duration has ended." });
+        }
+      }
+    }
+
     const topic = quiz.questionTopicId;
     if (!topic || !topic.questions) {
       return res.status(404).json({ success: false, message: "Quiz questions not found" });

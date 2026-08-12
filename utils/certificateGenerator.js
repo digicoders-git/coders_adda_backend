@@ -69,7 +69,7 @@ export const generateCertificate = async (userId, courseId, template) => {
       const fontSize = layerCfg.fontSize || "30px";
       ctx.font = `${fontStyle}${fontSize} sans-serif`;
       ctx.fillStyle = layerCfg.textColor || "#000000";
-      ctx.textAlign = "center";
+      ctx.textAlign = layerCfg.textAlign || "center";
       ctx.textBaseline = "middle";
 
       const x = parseFloat(layerCfg.horizontalPosition) || 0;

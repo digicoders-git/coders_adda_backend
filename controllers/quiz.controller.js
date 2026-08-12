@@ -16,6 +16,9 @@ export const createQuiz = async (req, res) => {
       questionTopicId,
       selectedQuestions,
       customQuestions,
+      scheduledStartTime,
+      courseId,
+      type,
     } = req.body;
 
     // Check if questionTopic exists and get question count
@@ -36,8 +39,11 @@ export const createQuiz = async (req, res) => {
       points,
       status: status !== undefined ? status : true,
       questionTopicId,
+      courseId: courseId === 'general' ? null : (courseId || null),
+      type: type || 'Quiz',
       selectedQuestions: selectedQuestions || [],
       customQuestions: customQuestions || [],
+      scheduledStartTime: scheduledStartTime || null,
       totalQuestions:
         (selectedQuestions && selectedQuestions.length > 0
           ? selectedQuestions.length
@@ -64,9 +70,27 @@ export const createQuiz = async (req, res) => {
 /* ================= GET ALL QUIZZES ================= */
 export const getAllQuizzes = async (req, res) => {
   try {
-    const { search, level, status, page = 1, limit = 10 } = req.query;
+    const { search, level, status, courseId, type, page = 1, limit = 10 } = req.query;
 
     let filter = {};
+
+    if (type) {
+      if (type === "Quiz") {
+        filter.type = { $in: ["Quiz", null, ""] };
+      } else {
+        filter.type = type;
+      }
+    } else {
+      filter.type = { $in: ["Quiz", null, ""] };
+    }
+
+    if (courseId) {
+      if (courseId === "general") {
+        filter.courseId = null;
+      } else {
+        filter.courseId = courseId;
+      }
+    }
 
     if (search) {
       filter.$or = [
@@ -88,6 +112,7 @@ export const getAllQuizzes = async (req, res) => {
 
     const quizzes = await Quiz.find(filter)
       .populate("questionTopicId")
+      .populate("courseId", "title")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
@@ -153,6 +178,10 @@ export const updateQuiz = async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
+
+    if (updateData.courseId === "" || updateData.courseId === "general") {
+      updateData.courseId = null;
+    }
 
     if (updateData.selectedQuestions || updateData.customQuestions) {
       const selectedCount = updateData.selectedQuestions
@@ -231,6 +260,36 @@ export const deleteQuiz = async (req, res) => {
     res.json({
       success: true,
       message: "Quiz deleted successfully"
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message
+    });
+  }
+};
+
+/* ================= SEND QUIZ REMINDER ================= */
+export const sendQuizReminder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const quiz = await Quiz.findById(id);
+
+    if (!quiz) {
+      return res.status(404).json({ success: false, message: "Quiz not found" });
+    }
+
+    if (!quiz.scheduledStartTime) {
+      return res.status(400).json({ success: false, message: "Quiz does not have a scheduled start time" });
+    }
+
+    // Call the notification utility
+    await sendQuizNotification(quiz, true);
+
+    res.json({
+      success: true,
+      message: "Quiz reminder notification sent successfully"
     });
   } catch (error) {
     res.status(500).json({

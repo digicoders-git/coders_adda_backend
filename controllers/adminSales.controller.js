@@ -103,6 +103,7 @@ export const getItemSalesData = async (req, res) => {
     else if (itemType === "ebook") totalItems = await Ebook.countDocuments();
     else if (itemType === "job") totalItems = await Job.countDocuments();
     else if (itemType === "subscription") totalItems = await Subscription.countDocuments();
+    else if (itemType === "lecture") totalItems = await mongoose.model("Lecture").countDocuments({ privacy: "locked", price: { $gt: 0 } });
 
     // 2. Period Revenue & Students
     let daysBack = 1; // Default for daily
@@ -239,6 +240,34 @@ export const getItemSalesData = async (req, res) => {
           }
         }
       ]);
+    } else if (itemType === "lecture") {
+      distribution = await Payment.aggregate([
+        { $match: periodMatchStage },
+        {
+          $lookup: {
+            from: "lectures",
+            localField: "itemId",
+            foreignField: "_id",
+            as: "itemDetails"
+          }
+        },
+        { $unwind: "$itemDetails" },
+        {
+          $lookup: {
+            from: Course.collection.name,
+            localField: "itemDetails.course",
+            foreignField: "_id",
+            as: "courseDetails"
+          }
+        },
+        { $unwind: "$courseDetails" },
+        {
+          $group: {
+            _id: "$courseDetails.title",
+            value: { $sum: "$amount" }
+          }
+        }
+      ]);
     }
 
     // 5. Success Transactions (limit 50)
@@ -261,6 +290,14 @@ export const getItemSalesData = async (req, res) => {
       } else if (itemType === "subscription") {
         const s = await Subscription.findById(txn.itemId).select("planType duration");
         txn.itemDetails = { title: s?.planType, duration: s?.duration };
+      } else if (itemType === "lecture") {
+        const l = await mongoose.model("Lecture").findById(txn.itemId).select("title course");
+        let courseTitle = "";
+        if (l && l.course) {
+          const c = await Course.findById(l.course).select("title");
+          if (c) courseTitle = c.title;
+        }
+        txn.itemDetails = { title: l?.title, courseTitle: courseTitle };
       }
     }
 
@@ -285,6 +322,9 @@ export const getItemSalesData = async (req, res) => {
       } else if (itemType === "subscription") {
         const s = await Subscription.findById(txn.itemId).select("planType");
         txn.itemDetails = { title: s?.planType };
+      } else if (itemType === "lecture") {
+        const l = await mongoose.model("Lecture").findById(txn.itemId).select("title");
+        txn.itemDetails = { title: l?.title };
       }
     }
 

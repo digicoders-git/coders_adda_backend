@@ -156,13 +156,24 @@ export const getQuizCertificateTemplate = async (req, res) => {
 /* ================= GET ALL QUIZ TEMPLATES ================= */
 export const getAllQuizCertificateTemplates = async (req, res) => {
   try {
+    const { type = "Quiz" } = req.query;
+
+    const matchType = type === "Quiz" ? { $in: ["Quiz", null, ""] } : type;
+
     const templates = await QuizCertificateTemplate.find()
-      .populate("quiz", "title quizCode")
+      .populate({
+        path: "quiz",
+        select: "title quizCode type",
+        match: { type: matchType }
+      })
       .sort({ createdAt: -1 });
+
+    // Filter out templates where the populated quiz is null (because it didn't match the type)
+    const filteredTemplates = templates.filter(t => t.quiz !== null);
 
     return res.status(200).json({
       success: true,
-      data: templates
+      data: filteredTemplates
     });
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error", error: error.message });

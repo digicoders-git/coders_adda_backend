@@ -4,6 +4,7 @@ import Lecture from "../models/lecture.model.js";
 import Course from "../models/course.model.js";
 import CertificateTemplate from "../models/certificateTemplate.model.js";
 import { generateCertificate } from "../utils/certificateGenerator.js";
+import { sendCertificateNotification } from "./notification.controller.js";
 
 // Helper: Parse duration string ("10 min", "1:20:30", "05:20") into seconds
 const parseDuration = (hms) => {
@@ -127,9 +128,13 @@ const registerProgressSocket = (socket, io) => {
             const certificate = await generateCertificate(userId, courseId, template);
             if (certificate) {
               socket.emit("certificate:issued", {
-                success: true,
                 certificateUrl: certificate.certificateUrl,
                 message: "Congratulations! You've earned a certificate."
+              });
+
+              // Trigger App & Email Notification
+              sendCertificateNotification(userId, courseId, certificate.certificateUrl).catch(err => {
+                 console.error("[SOCKET] Failed to send certificate notification:", err);
               });
             }
           }

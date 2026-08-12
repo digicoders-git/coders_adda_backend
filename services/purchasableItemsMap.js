@@ -4,6 +4,8 @@ import Subscription from "../models/subscription.model.js";
 import Job from "../models/job.model.js";
 import EbookEnrollment from "../models/ebookEnrollment.model.js";
 import JobEnrollment from "../models/jobEnrollment.model.js";
+import Lecture from "../models/lecture.model.js";
+import LecturePurchase from "../models/lecturePurchase.model.js";
 
 export const purchasableItemsMap = {
   course: {
@@ -165,6 +167,30 @@ export const purchasableItemsMap = {
           job: itemId,
           pricePaid: pricePaid,
           enrolledAt: new Date()
+        },
+        { upsert: true, new: true }
+      );
+    }
+  },
+
+  lecture: {
+    model: Lecture,
+    priceField: "price",
+    priceTypeField: null, // Lectures are always paid when they reach this flow
+    unlock: async (user, itemId, paymentDetails) => {
+      const lecture = await Lecture.findById(itemId);
+      if (!lecture) throw new Error("Lecture not found");
+
+      // Create or update LecturePurchase record
+      await LecturePurchase.findOneAndUpdate(
+        { user: user._id, lecture: itemId },
+        {
+          user: user._id,
+          lecture: itemId,
+          course: lecture.course,
+          amount: lecture.price,
+          paymentId: paymentDetails?.paymentId || null,
+          orderId: paymentDetails?.orderId || null
         },
         { upsert: true, new: true }
       );

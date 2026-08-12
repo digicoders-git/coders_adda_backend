@@ -5,6 +5,8 @@ const quizSchema = new mongoose.Schema(
     title: { type: String, required: true },
     quizCode: { type: String, required: true },
     description: { type: String },
+    type: { type: String, enum: ['Quiz', 'Test'], default: 'Quiz' },
+    startSmsSent: { type: Boolean, default: false },
     duration: { type: Number, required: true }, // in minutes
     level: {
       type: String,
@@ -21,6 +23,12 @@ const quizSchema = new mongoose.Schema(
       ref: "QuestionTopic",
       required: true
     },
+    courseId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Course",
+      default: null
+    },
+    scheduledStartTime: { type: Date },
     selectedQuestions: [{ type: mongoose.Schema.Types.ObjectId }],
     customQuestions: [
       {

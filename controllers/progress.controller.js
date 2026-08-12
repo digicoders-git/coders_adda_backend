@@ -3,6 +3,7 @@ import Lecture from "../models/lecture.model.js";
 import Course from "../models/course.model.js";
 import CertificateTemplate from "../models/certificateTemplate.model.js";
 import { generateCertificate } from "../utils/certificateGenerator.js";
+import { sendCertificateNotification } from "./notification.controller.js";
 
 // Helper: Parse duration string ("10 min", "1:20:30", "05:20") into seconds
 const parseDuration = (hms) => {
@@ -92,6 +93,11 @@ export const updateProgressREST = async (req, res) => {
               certificateUrl = certificate.certificateUrl;
               debugReason = "Success";
               console.log(`[REST] Certificate generated successfully!`);
+              
+              // Trigger App & Email Notification
+              sendCertificateNotification(userId, courseId, certificateUrl).catch(err => {
+                 console.error("[REST] Failed to send certificate notification:", err);
+              });
             } else {
               debugReason = "generateCertificate returned null";
             }

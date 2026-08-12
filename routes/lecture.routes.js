@@ -1,6 +1,7 @@
 import express from "express";
 import upload from "../middleware/multer.js";
 import optionalUserAuth from "../middleware/optionalUserAuth.js";
+import userAuth from "../middleware/userAuth.js";
 import {
   createLecture,
   getAllLectures,
@@ -8,7 +9,8 @@ import {
   getLecturesByTopic,
   getSingleLecture,
   updateLecture,
-  deleteLecture
+  deleteLecture,
+  checkLecturePurchase
 } from "../controllers/lecture.controller.js";
 
 const lectureRoute = express.Router();
@@ -27,6 +29,7 @@ lectureRoute.get("/get", getAllLectures);
 lectureRoute.get("/get/by-course/:courseId", getLecturesByCourse);
 lectureRoute.get("/get/by-topic/:topicId", optionalUserAuth, getLecturesByTopic);
 lectureRoute.get("/get/:id", optionalUserAuth, getSingleLecture);
+lectureRoute.get("/check-purchase/:lectureId", userAuth, checkLecturePurchase);
 
 lectureRoute.patch(
   "/update/:id",

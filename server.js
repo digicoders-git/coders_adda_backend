@@ -20,6 +20,7 @@ import './config/firebase.js';
 import { initCronJobs } from './config/cron.js';
 import "./cron/subscriptionExpiry.cron.js";
 import "./cron/scheduledNotifications.cron.js";
+import "./cron/testSms.cron.js";
 
 import { adminRoute } from './routes/admin.route.js';
 import CourseCategoryRoutes from './routes/courseCategory.routes.js';

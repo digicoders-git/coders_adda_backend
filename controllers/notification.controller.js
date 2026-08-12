@@ -5,6 +5,7 @@ import cloudinary from '../config/cloudinary.js';
 import admin from '../config/firebase.js';
 import Course from '../models/course.model.js';
 import Payment from '../models/payment.model.js';
+import { sendEmail } from '../utils/sendEmail.js';
 
 // --- ADMIN CONTROLLERS ---
 
@@ -20,22 +21,20 @@ export const createNotification = async (req, res) => {
       }
     }
 
-    // Parse arrays that might come as strings from FormData
     let parsedTargetUsers = targetUsers;
     if (typeof targetUsers === 'string') {
       try { parsedTargetUsers = JSON.parse(targetUsers); } catch (e) { parsedTargetUsers = [targetUsers]; }
     }
 
     const notification = new Notification({
-      title, body, image: imageUrl, actionLink, priority, targetGroup, 
+      title, body, image: imageUrl, actionLink, priority, targetGroup,
       targetUsers: parsedTargetUsers, targetCourse, scheduledFor, type,
       status: scheduledFor ? 'Pending' : 'Sent'
     });
-    
+
     await notification.save();
 
     if (!scheduledFor) {
-      // Send immediately
       await processNotification(notification);
     }
 
@@ -82,11 +81,11 @@ export const getNotificationStats = async (req, res) => {
     const totalSent = await Notification.countDocuments({ status: 'Sent' });
     const totalPending = await Notification.countDocuments({ status: 'Pending' });
     const totalFailed = await Notification.countDocuments({ status: 'Failed' });
-    
+
     const userStats = await UserNotification.aggregate([
       { $group: { _id: "$isRead", count: { $sum: 1 } } }
     ]);
-    
+
     let readCount = 0;
     let unreadCount = 0;
     userStats.forEach(stat => {
@@ -96,7 +95,6 @@ export const getNotificationStats = async (req, res) => {
 
     const readRate = (readCount + unreadCount) > 0 ? (readCount / (readCount + unreadCount)) * 100 : 0;
 
-    // Type breakdown
     const typeBreakdown = await Notification.aggregate([
       { $group: { _id: '$type', count: { $sum: 1 } } }
     ]);
@@ -175,40 +173,34 @@ export const processNotification = async (notification) => {
     }
 
     let usersQuery = {};
-    
+
     if (notification.targetGroup === 'Specific' && notification.targetUsers?.length) {
-      // Specific users
       usersQuery._id = { $in: notification.targetUsers };
     } else if (notification.targetGroup === 'CourseEnrolled' && notification.targetCourse) {
-      // Find users who have this course in their purchaseCourses array
       const enrolledUsers = await User.find({
         purchaseCourses: notification.targetCourse
       }).select('_id');
       const enrolledUserIds = enrolledUsers.map(u => u._id);
-      if (enrolledUserIds.length === 0) return; // No enrolled users
+      if (enrolledUserIds.length === 0) return;
       usersQuery._id = { $in: enrolledUserIds };
     } else if (notification.targetGroup === 'Premium') {
-      // Users with active subscription purchases (placeholder logic)
       usersQuery.isSubscribed = true;
     }
-    // For 'All', no filter needed — send to everyone with fcmToken
 
     const users = await User.find(usersQuery).select('_id fcmToken');
-    
+
     if (users.length === 0) return;
 
-    // Save UserNotification records for in-app bell
     const userNotifications = users.map(user => ({
       userId: user._id,
       notificationId: notification._id,
       isRead: false
     }));
-    
+
     await UserNotification.insertMany(userNotifications, { ordered: false }).catch(() => {});
-    
-    // FCM Push — only for users who have fcmToken
+
     const tokens = users.map(u => u.fcmToken).filter(t => t && t.length > 10);
-    
+
     if (tokens.length > 0) {
       const message = {
         notification: {
@@ -226,12 +218,11 @@ export const processNotification = async (notification) => {
           }
         }
       };
-      
-      if(notification.image) {
-          message.notification.imageUrl = notification.image;
+
+      if (notification.image) {
+        message.notification.imageUrl = notification.image;
       }
-      
-      // Send in chunks of 500 (FCM limit)
+
       const chunkSize = 500;
       for (let i = 0; i < tokens.length; i += chunkSize) {
         const chunkTokens = tokens.slice(i, i + chunkSize);
@@ -251,10 +242,10 @@ export const processNotification = async (notification) => {
           });
       }
     }
-    
+
     notification.status = 'Sent';
     await notification.save();
-    
+
   } catch (err) {
     console.error('Error processing notification:', err);
     notification.status = 'Failed';
@@ -263,30 +254,32 @@ export const processNotification = async (notification) => {
 };
 
 // --- AUTO TRIGGER: Course Update Notification ---
-// Called automatically when lecture/topic/notes/PDF is added to a course
-// type: 'NewLecture' | 'NewTopic' | 'NewNotes' | 'NewTest'
 export const sendCourseUpdateNotification = async (courseId, type, resourceTitle, customImage = '') => {
   try {
-    const course = await Course.findById(courseId).select('title thumbnail');
+    const course = await Course.findById(courseId).select('title thumbnail priceType price');
     if (!course) return;
 
     const typeLabels = {
-      NewLecture: { emoji: '🎬', label: 'New Lecture Added' },
-      NewTopic:   { emoji: '📚', label: 'New Topic Added' },
-      NewNotes:   { emoji: '📄', label: 'New Notes/PDF Added' },
-      NewTest:    { emoji: '📝', label: 'New Test Added' },
-      NewLive:    { emoji: '🔴', label: 'Live Stream Started' },
+      NewLecture: { emoji: 'LECTURE', label: 'New Lecture Added' },
+      NewTopic:   { emoji: 'TOPIC', label: 'New Topic Added' },
+      NewNotes:   { emoji: 'NOTES', label: 'New Notes/PDF Added' },
+      NewTest:    { emoji: 'TEST', label: 'New Test Added' },
+      NewLive:    { emoji: 'LIVE', label: 'Live Stream Started' },
     };
 
-    const info = typeLabels[type] || { emoji: '🔔', label: 'Course Updated' };
+    const info = typeLabels[type] || { emoji: 'UPDATE', label: 'Course Updated' };
+
+    // If the course is free, target 'All' users. If paid, target only enrolled students.
+    const isFree = course.priceType === 'free' || (course.price || 0) === 0;
+    const targetGroup = isFree ? 'All' : 'CourseEnrolled';
 
     const notification = new Notification({
-      title: `${info.emoji} ${info.label} — ${course.title}`,
+      title: `[${info.emoji}] ${info.label} - ${course.title}`,
       body: `"${resourceTitle}" is now available in your course. Start learning now!`,
       image: customImage || course.thumbnail?.url || '',
       actionLink: `/course-detail/${courseId}`,
       priority: 'Normal',
-      targetGroup: 'CourseEnrolled',
+      targetGroup: targetGroup,
       targetCourse: courseId,
       type: type,
       status: 'Sent'
@@ -295,19 +288,18 @@ export const sendCourseUpdateNotification = async (courseId, type, resourceTitle
     await notification.save();
     await processNotification(notification);
 
-    console.log(`✅ Auto-notification sent [${type}]: ${course.title} — ${resourceTitle}`);
+    console.log(`Auto-notification sent [${type}]: ${course.title} - ${resourceTitle}`);
   } catch (err) {
-    console.error(`❌ Auto-notification failed [${type}]:`, err.message);
+    console.error(`Auto-notification failed [${type}]:`, err.message);
   }
 };
 
 // --- AUTO TRIGGER: Quiz Notification ---
-// Called when a new quiz is created — notify ALL users
 export const sendQuizNotification = async (quiz) => {
   try {
     const notification = new Notification({
-      title: `🧠 New Quiz Available: ${quiz.title}`,
-      body: `A new ${quiz.level || 'General'} level quiz is live! ${quiz.totalQuestions} questions. Challenge yourself now!`,
+      title: `New Quiz Available: ${quiz.title}`,
+      body: `A new ${quiz.level || 'General'} level quiz is live! Challenge yourself now!`,
       actionLink: `/quiz`,
       priority: 'High',
       targetGroup: 'All',
@@ -318,18 +310,17 @@ export const sendQuizNotification = async (quiz) => {
     await notification.save();
     await processNotification(notification);
 
-    console.log(`✅ Quiz notification sent: ${quiz.title}`);
+    console.log(`Quiz notification sent: ${quiz.title}`);
   } catch (err) {
-    console.error('❌ Quiz notification failed:', err.message);
+    console.error('Quiz notification failed:', err.message);
   }
 };
 
 // --- AUTO TRIGGER: Ebook Notification ---
-// Called when a new Ebook is created — notify ALL users
 export const sendEbookNotification = async (ebook) => {
   try {
     const notification = new Notification({
-      title: `📖 New E-Book Published: ${ebook.title}`,
+      title: `New E-Book Published: ${ebook.title}`,
       body: `Check out our new e-book by ${ebook.authorName}. ${ebook.priceType === 'free' ? 'It is completely FREE!' : 'Grab your copy now!'}`,
       image: ebook.image?.url || '',
       actionLink: `/ebook-details/${ebook._id}`,
@@ -342,9 +333,9 @@ export const sendEbookNotification = async (ebook) => {
     await notification.save();
     await processNotification(notification);
 
-    console.log(`✅ Ebook notification sent: ${ebook.title}`);
+    console.log(`Ebook notification sent: ${ebook.title}`);
   } catch (err) {
-    console.error('❌ Ebook notification failed:', err.message);
+    console.error('Ebook notification failed:', err.message);
   }
 };
 
@@ -438,5 +429,63 @@ export const updateUserNotificationSettings = async (req, res) => {
     return res.status(200).json({ success: true, data: settings });
   } catch (error) {
     return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// --- AUTO TRIGGER: Certificate Notification ---
+export const sendCertificateNotification = async (userId, courseId, certificateUrl) => {
+  try {
+    const user = await User.findById(userId);
+    const course = await Course.findById(courseId);
+
+    if (!user || !course) return;
+
+    const title = 'Certificate Earned!';
+    const body = 'Congratulations ' + user.name + '! You have successfully completed "' + course.title + '".';
+
+    // 1. Create Notification document targeting this specific user
+    const notification = new Notification({
+      title,
+      body,
+      actionLink: '/certificates',
+      priority: 'High',
+      targetGroup: 'Specific',
+      targetUsers: [user._id],
+      type: 'System',
+      status: 'Sent'
+    });
+
+    await notification.save();
+
+    // 2. processNotification handles UserNotification (in-app bell) + FCM push
+    await processNotification(notification);
+
+    // 3. Email with certificate attachment
+    if (user.email) {
+      const safeName = user.name || 'Student';
+      const safeTitle = course.title || 'Course';
+      const emailHtml = '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">'
+        + '<h2 style="color: #4CAF50; text-align: center;">Congratulations ' + safeName + '!</h2>'
+        + '<p style="font-size: 16px; color: #333;">You have successfully completed the course <strong>' + safeTitle + '</strong>. Your certificate is attached to this email.</p>'
+        + '<div style="text-align: center; margin: 30px 0;">'
+        + '<a href="' + certificateUrl + '" style="background-color: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">View Your Certificate</a>'
+        + '</div>'
+        + '<p style="font-size: 14px; color: #666; text-align: center;">Keep learning and growing with CodersAdda!<br><em>The CodersAdda Team</em></p>'
+        + '</div>';
+
+      const safeFileName = 'Certificate_' + safeTitle.replace(/[^a-zA-Z0-9]/g, '_') + '.png';
+      const attachments = certificateUrl ? [{ filename: safeFileName, path: certificateUrl }] : [];
+
+      await sendEmail(
+        user.email,
+        'Congratulations! Certificate for ' + safeTitle,
+        body,
+        emailHtml,
+        attachments
+      );
+      console.log('[Notification] Certificate Email sent to ' + user.email);
+    }
+  } catch (error) {
+    console.error('[Notification] Error sending certificate notification:', error);
   }
 };

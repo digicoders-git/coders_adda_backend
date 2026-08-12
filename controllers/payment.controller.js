@@ -22,7 +22,8 @@ export const createOrder = async (req, res) => {
     const item = await config.model.findById(itemId);
     if (!item) return res.status(404).json({ message: "Item not found" });
 
-    if (item[config.priceTypeField] === "free") {
+    // Lectures don't have a priceType — skip this check for them
+    if (config.priceTypeField && item[config.priceTypeField] === "free") {
       return res.status(400).json({ message: "This item is free. Use free enroll API." });
     }
 
@@ -163,8 +164,12 @@ export const verifyPayment = async (req, res) => {
     const config = purchasableItemsMap[payment.itemType];
     if (!config) throw new Error("Invalid item type");
 
-    // 🔥 FIRST unlock user
-    await config.unlock(user, payment.itemId);
+    // 🔥 Pass payment details so lecture unlock can store paymentId
+    const paymentDetails = {
+      paymentId: razorpay_payment_id,
+      orderId: razorpay_order_id
+    };
+    await config.unlock(user, payment.itemId, paymentDetails);
     await user.save();
 
     payment.status = "success";
@@ -447,5 +452,19 @@ export const downloadTransactionSlip = async (req, res) => {
   } catch (err) {
     console.error("Download Slip Error:", err);
     res.status(500).json({ success: false, message: "Could not generate slip" });
+  }
+};
+
+export const getMyPaymentHistory = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const payments = await Payment.find({ user: userId })
+      .sort({ createdAt: -1 })
+      .lean();
+      
+    return res.status(200).json({ success: true, data: payments });
+  } catch (err) {
+    console.error("Get Payment History Error:", err);
+    return res.status(500).json({ success: false, message: "Could not fetch payment history" });
   }
 };

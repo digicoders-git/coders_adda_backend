@@ -39,6 +39,12 @@ const lectureSchema = new mongoose.Schema({
     default: "locked"
   },
 
+  price: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+
   isActive: {
     type: Boolean,
     default: true

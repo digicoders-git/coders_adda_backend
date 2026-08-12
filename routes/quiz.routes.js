@@ -5,7 +5,8 @@ import {
   getQuizById,
   updateQuiz,
   deleteQuiz,
-  toggleQuizStatus
+  toggleQuizStatus,
+  sendQuizReminder
 } from "../controllers/quiz.controller.js";
 import {
   createQuestionTopic,
@@ -50,6 +51,7 @@ router.get("/get/:id", getQuizById);
 router.put("/update/:id", verifyAdminToken, updateQuiz);
 router.delete("/delete/:id", verifyAdminToken, deleteQuiz);
 router.patch("/toggle-status/:id", verifyAdminToken, toggleQuizStatus);
+router.post("/remind/:id", verifyAdminToken, sendQuizReminder);
 
 /* Question Topic Routes */
 router.post("/topic/create", verifyAdminToken, createQuestionTopic);
