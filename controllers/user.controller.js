@@ -9,6 +9,7 @@ import { purchasableItemsMap } from "../services/purchasableItemsMap.js";
 import QuizCertificate from "../models/quizCertificate.model.js";
 import fs from "fs";
 import path from "path";
+import admin from "../config/firebase.js";
 
 
 // Fixed OTP
@@ -87,7 +88,7 @@ export const requestMobileOtp = async (req, res) => {
 // Verify Mobile OTP & Login
 export const verifyMobileOtp = async (req, res) => {
   try {
-    const { mobile, otp, referralCode } = req.body;
+    const { mobile, otp, referralCode, deviceId, fcmToken } = req.body;
 
     // Validation
     if (!mobile) {
@@ -131,6 +132,59 @@ export const verifyMobileOtp = async (req, res) => {
         message: 'Your account is blocked, contact to DigiCoders'
       });
     }
+
+    // --- Device Approval Logic ---
+    if (deviceId && user.currentDeviceId && user.currentDeviceId !== deviceId) {
+      if (!user.loginApproval || user.loginApproval.status !== 'approved' || user.loginApproval.requestedDeviceId !== deviceId) {
+        
+        // Check if approval was just requested and we're polling
+        if (user.loginApproval && user.loginApproval.status === 'pending' && user.loginApproval.requestedDeviceId === deviceId) {
+           return res.status(200).json({
+             success: false,
+             waitingForApproval: true,
+             message: "Waiting for approval from other device..."
+           });
+        }
+
+        // Initialize approval request
+        user.loginApproval = {
+          status: 'pending',
+          requestedDeviceId: deviceId,
+          requestedAt: new Date()
+        };
+        await user.save();
+
+        if (user.fcmToken) {
+          const message = {
+            data: {
+              type: 'LOGIN_APPROVAL_REQUEST',
+              requestedDeviceId: deviceId,
+              title: "Login Attempt",
+              body: "Another device is trying to log into your account. Allow and logout?"
+            },
+            token: user.fcmToken
+          };
+          try {
+            await admin.messaging().send(message);
+          } catch (err) {
+            console.error("FCM error during login approval:", err);
+          }
+        }
+        
+        return res.status(200).json({
+          success: false,
+          waitingForApproval: true,
+          message: "Approval request sent to your other device."
+        });
+      } else {
+        // It was approved. Clear the approval state and proceed
+        user.loginApproval = { status: null, requestedDeviceId: null, requestedAt: null };
+      }
+    }
+
+    // Update currentDeviceId and fcmToken
+    if (deviceId) user.currentDeviceId = deviceId;
+    if (fcmToken) user.fcmToken = fcmToken;
 
     // 🎁 Referral Logic & Registration (Triggered for first-time verification)
     if (!user.isMobileVerified) {
@@ -490,7 +544,16 @@ export const updateUserProfile = async (req, res) => {
       }
       user.name = name;
     }
-    if (email !== undefined) user.email = email;
+    if (email !== undefined) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (email.trim() && !emailRegex.test(email)) {
+        return res.status(400).json({
+          success: false,
+          message: "Please enter a valid email address"
+        });
+      }
+      user.email = email;
+    }
     if (about !== undefined) user.about = about;
 
     if (socialLinks !== undefined) {
@@ -722,8 +785,9 @@ export const getMyWallet = async (req, res) => {
     const referralPayments = payments.filter(p => p.itemType === "referral_reward" && p.status === "success");
     const totalEarnings = referralPayments.reduce((acc, curr) => acc + curr.amount, 0);
 
-    // For now withdrawn is 0 as withdrawal logic is not yet implemented
-    const withdrawn = 0;
+    // Calculate Withdrawn Amount
+    const withdrawnPayments = payments.filter(p => p.itemType === "wallet_withdrawal" && p.status === "success");
+    const withdrawn = withdrawnPayments.reduce((acc, curr) => acc + curr.amount, 0);
 
     res.status(200).json({
       success: true,
@@ -733,6 +797,61 @@ export const getMyWallet = async (req, res) => {
         withdrawn: withdrawn,
         transactions: transactions
       }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/* ================= LOGIN APPROVAL APIs ================= */
+export const approveLogin = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    if (user.loginApproval && user.loginApproval.status === 'pending') {
+      user.loginApproval.status = 'approved';
+      
+      // The current device is logging out to allow the new device
+      user.currentDeviceId = null; 
+      
+      await user.save();
+      return res.status(200).json({ success: true, message: "Login approved successfully." });
+    } else {
+      return res.status(400).json({ success: false, message: "No pending login request found." });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getLoginApprovalStatus = async (req, res) => {
+  try {
+    const { mobile, deviceId } = req.query;
+    
+    if (!mobile || !deviceId) {
+      return res.status(400).json({ success: false, message: "Mobile and deviceId are required." });
+    }
+
+    const user = await User.findOne({ mobile });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found." });
+    }
+
+    if (user.loginApproval && user.loginApproval.requestedDeviceId === deviceId) {
+      return res.status(200).json({
+        success: true,
+        status: user.loginApproval.status
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      status: 'none'
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

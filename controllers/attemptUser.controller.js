@@ -98,15 +98,13 @@ export const createAttempt = async (req, res) => {
 
     const template = await QuizCertificateTemplate.findOne({ quiz: quizId });
     if (template && template.status) {
-      // Generate certificate if marks > 0 (passing score)
-      if (marks > 0) {
-        const certificate = await generateQuizCertificate(studentId, quizId, template, {
-          totalScore: `${marks} / ${totalMarks}`,
-        });
-        if (certificate) {
-          certificateIssued = true;
-          certificateDetails = certificate;
-        }
+      // Generate certificate regardless of marks
+      const certificate = await generateQuizCertificate(studentId, quizId, template, {
+        totalScore: `${marks} / ${totalMarks}`,
+      });
+      if (certificate) {
+        certificateIssued = true;
+        certificateDetails = certificate;
       }
     }
 
@@ -161,8 +159,8 @@ export const getMyAttempts = async (req, res) => {
       
       let certificateUrl = quizIdStr ? certMap[quizIdStr] : null;
 
-      // Lazy certificate generation if passed (marks > 0) but no certificate exists
-      if (!certificateUrl && attempt.marks > 0 && quizIdStr) {
+      // Lazy certificate generation if no certificate exists
+      if (!certificateUrl && quizIdStr) {
         const template = await QuizCertificateTemplate.findOne({ quiz: quizIdStr });
         if (template && template.status) {
           const newCert = await generateQuizCertificate(studentId, quizIdStr, template, {
@@ -215,8 +213,8 @@ export const getAttemptsByQuiz = async (req, res) => {
       let certificateUrl = studentIdStr ? certMap[studentIdStr] : null;
       let certificateGenerated = studentIdStr ? certifiedStudents.has(studentIdStr) : false;
 
-      // Lazy certificate generation if student passed (marks > 0) but no certificate exists
-      if (!certificateUrl && attempt.marks > 0 && studentIdStr) {
+      // Lazy certificate generation if no certificate exists
+      if (!certificateUrl && studentIdStr) {
         const template = await QuizCertificateTemplate.findOne({ quiz: quizId });
         if (template && template.status) {
           const newCert = await generateQuizCertificate(studentIdStr, quizId, template, {

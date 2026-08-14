@@ -1,6 +1,8 @@
 import { SupportTicket } from '../models/supportTicket.model.js';
 import User from '../models/user.model.js';
 import admin from '../config/firebase.js';
+import { Notification } from '../models/notification.model.js';
+import { processNotification } from './notification.controller.js';
 
 // Create a new support ticket (App user or guest)
 export const createSupportTicket = async (req, res) => {
@@ -124,19 +126,29 @@ export const updateSupportTicketStatus = async (req, res) => {
 
     await ticket.save();
 
-    // 📩 Send Direct Notification if replied
-    if (adminReply !== undefined && ticket.userId) {
+    // 📩 Send Direct Notification if replied or resolved
+    if ((adminReply !== undefined || status === 'Resolved') && ticket.userId) {
       try {
         const ticketUser = await User.findById(ticket.userId);
-        if (ticketUser && ticketUser.fcmToken) {
-          const message = {
-            notification: {
-              title: "Support Ticket Update 📩",
-              body: `Your ticket "${ticket.subject}" has a new update!`,
-            },
-            token: ticketUser.fcmToken,
-          };
-          await admin.messaging().send(message);
+        if (ticketUser) {
+          const title = status === 'Resolved' ? "Support Ticket Resolved ✅" : "Support Ticket Update 📩";
+          const body = status === 'Resolved' 
+            ? `Your ticket "${ticket.subject}" has been marked as resolved.` 
+            : `Your ticket "${ticket.subject}" has a new update!`;
+
+          const notification = new Notification({
+            title,
+            body,
+            actionLink: '/support',
+            priority: 'Normal',
+            targetGroup: 'Specific',
+            targetUsers: [ticketUser._id],
+            type: 'System',
+            status: 'Sent'
+          });
+
+          await notification.save();
+          await processNotification(notification);
         }
       } catch (notifErr) {
         console.error("Failed to send ticket reply notification:", notifErr);

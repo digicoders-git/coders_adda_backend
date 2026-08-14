@@ -138,7 +138,7 @@ export const getStats = async (req, res) => {
       recentComments = await ShortComment.find({ parentComment: null })
         .sort({ createdAt: -1 })
         .limit(5)
-        .populate('userId', 'name profilePicture profilePhoto');
+        .populate('userId', 'name profilePicture profilePhoto picture');
     } catch (err) {
       console.error("Error fetching recent comments:", err.message);
     }

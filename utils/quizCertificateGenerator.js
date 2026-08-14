@@ -4,6 +4,7 @@ import User from "../models/user.model.js";
 import Quiz from "../models/quiz.model.js";
 import fs from "fs";
 import path from "path";
+import { sendEmail } from "./sendEmail.js";
 
 const fontDir = path.join(process.cwd(), "assets", "fonts");
 if (fs.existsSync(fontDir)) {
@@ -148,6 +149,29 @@ export const generateQuizCertificate = async (userId, quizId, template, extraDat
       certificateId:  certId,
       issuedAt:       new Date()
     });
+
+    if (user && user.email) {
+      const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+        <h2 style="color: #4CAF50; text-align: center;">Congratulations ${user.name}!</h2>
+        <p style="font-size: 16px; color: #333;">You have successfully completed the quiz <strong>${quiz ? quiz.title : ''}</strong>.</p>
+        <p style="font-size: 16px; color: #333;">Your certificate has been generated.</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${certificateUrl}" style="background-color: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">Download Certificate</a>
+        </div>
+        <p style="font-size: 14px; color: #666; text-align: center;">Keep learning and growing with CodersAdda!</p>
+      </div>`;
+      
+      await sendEmail(
+        user.email,
+        "Your Quiz Certificate - CodersAdda",
+        "Your quiz certificate has been generated successfully.",
+        emailHtml,
+        []
+      ).catch(err => {
+        console.error("Failed to send certificate email:", err.message);
+      });
+    }
 
     return certificate;
 

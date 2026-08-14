@@ -1,5 +1,5 @@
 import express from 'express'
-import { getAllUsers, getMyWallet, getProfile, googleLogin, requestMobileOtp, verifyMobileOtp, updateUserIsActive, updateUserProfile, updateFcmToken } from '../controllers/user.controller.js';
+import { getAllUsers, getMyWallet, getProfile, googleLogin, requestMobileOtp, verifyMobileOtp, updateUserIsActive, updateUserProfile, updateFcmToken, approveLogin, getLoginApprovalStatus } from '../controllers/user.controller.js';
 import userAuth from '../middleware/userAuth.js';
 import upload from "../middleware/multer.js";
 import { getMyLibrary } from '../controllers/library.controller.js';
@@ -12,6 +12,10 @@ userRoute.post('/verify-otp', verifyMobileOtp);
 
 // Google Login
 userRoute.post('/google-login', googleLogin);
+
+// Login Approval
+userRoute.post('/approve-login', userAuth, approveLogin);
+userRoute.get('/login-approval-status', getLoginApprovalStatus);
 
 // Get All Users (Admin)
 userRoute.get('/', getAllUsers);

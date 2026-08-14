@@ -141,6 +141,10 @@ export const validateCoupon = async (req, res) => {
       return res.status(400).json({ success: false, message: "Coupon usage limit reached" });
     }
 
+    if (coupon.usedBy && coupon.usedBy.includes(req.user._id)) {
+      return res.status(400).json({ success: false, message: "You have already used this coupon" });
+    }
+
     if (amount && amount < coupon.minPurchaseAmount) {
       return res.status(400).json({ success: false, message: `Minimum purchase of ₹${coupon.minPurchaseAmount} required for this coupon` });
     }
@@ -158,6 +162,33 @@ export const validateCoupon = async (req, res) => {
       finalAmount: amount - discountAmount
     });
 
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/* ===============================
+   5️⃣ GET ACTIVE COUPONS (Public/User)
+================================ */
+export const getActiveCoupons = async (req, res) => {
+  try {
+    const activeCoupons = await Coupon.find({
+      isActive: true,
+      $or: [
+        { validTill: null },
+        { validTill: { $gt: new Date() } }
+      ]
+    }).sort({ createdAt: -1 });
+
+    // Filter out usage limit reached
+    const validCoupons = activeCoupons.filter(coupon => {
+      if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) {
+        return false;
+      }
+      return true;
+    });
+
+    res.json({ success: true, coupons: validCoupons });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

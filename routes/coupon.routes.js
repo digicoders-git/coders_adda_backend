@@ -5,13 +5,17 @@ import {
   deleteCoupon,
   validateCoupon,
   getSingleCoupon,
-  updateCoupon
+  updateCoupon,
+  getActiveCoupons
 } from "../controllers/coupon.controller.js";
+
+import userAuth from "../middleware/userAuth.js";
 
 const couponRoutes = express.Router();
 
 // Public routes (used by app to validate before purchase)
-couponRoutes.post("/validate", validateCoupon);
+couponRoutes.post("/validate", userAuth, validateCoupon);
+couponRoutes.get("/get-active", getActiveCoupons);
 
 // Admin routes
 couponRoutes.post("/create", createCoupon);

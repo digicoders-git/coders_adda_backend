@@ -106,7 +106,7 @@ export const getCommentsByShort = async (req, res) => {
     const { shortId } = req.params;
 
     const comments = await ShortComment.find({ shortId })
-      .populate("userId", "name email profilePicture profilePhoto")
+      .populate("userId", "name email profilePicture profilePhoto picture")
       .sort({ createdAt: 1 })
       .lean();
 
@@ -146,7 +146,7 @@ export const getCommentsByShort = async (req, res) => {
 export const getLatestComments = async (req, res) => {
   try {
     const comments = await ShortComment.find({ parentComment: null })
-      .populate("userId", "name email profilePicture profilePhoto")
+      .populate("userId", "name email profilePicture profilePhoto picture")
       .populate("shortId", "caption video")
       .sort({ createdAt: -1 })
       .limit(5)
@@ -220,6 +220,48 @@ export const deleteComment = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
+      message: "Server error",
+      error: error.message
+    });
+  }
+};
+
+/* ================= EDIT COMMENT ================= */
+export const editComment = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const { commentText } = req.body;
+    
+    // Support edit by admin or user
+    const userId = req.admin ? req.admin.id : req.userId;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    if (!commentText) {
+      return res.status(400).json({ message: "Comment text is required" });
+    }
+
+    const comment = await ShortComment.findById(commentId);
+    if (!comment) {
+      return res.status(404).json({ message: "Comment not found" });
+    }
+
+    // Only allow author to edit (either Admin or User who created it)
+    if (comment.userId.toString() !== userId.toString()) {
+      return res.status(403).json({ message: "Not authorized to edit this comment" });
+    }
+
+    comment.commentText = commentText;
+    await comment.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Comment edited successfully",
+      data: comment
+    });
+  } catch (error) {
+    res.status(500).json({
       message: "Server error",
       error: error.message
     });

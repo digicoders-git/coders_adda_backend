@@ -49,6 +49,10 @@ export const createOrder = async (req, res) => {
         return res.status(400).json({ message: "Coupon limit reached" });
       }
 
+      if (coupon.usedBy && coupon.usedBy.includes(userId)) {
+        return res.status(400).json({ message: "You have already used this coupon" });
+      }
+
       if (amount < coupon.minPurchaseAmount) {
         return res.status(400).json({ message: `Minimum purchase of ₹${coupon.minPurchaseAmount} required for this coupon` });
       }
@@ -186,7 +190,10 @@ export const verifyPayment = async (req, res) => {
     if (payment.coupon?.code) {
       await Coupon.findOneAndUpdate(
         { code: payment.coupon.code.toUpperCase() },
-        { $inc: { usedCount: 1 } }
+        { 
+          $inc: { usedCount: 1 },
+          $push: { usedBy: userId }
+        }
       );
     }
 
@@ -264,6 +271,10 @@ export const payWithWallet = async (req, res) => {
         return res.status(400).json({ success: false, message: "Coupon limit reached" });
       }
 
+      if (coupon.usedBy && coupon.usedBy.includes(userId)) {
+        return res.status(400).json({ success: false, message: "You have already used this coupon" });
+      }
+
       if (amount < coupon.minPurchaseAmount) {
         return res.status(400).json({ success: false, message: `Minimum purchase of ₹${coupon.minPurchaseAmount} required` });
       }
@@ -320,9 +331,10 @@ export const payWithWallet = async (req, res) => {
       } : undefined
     });
 
-    // 🔥 Increment Coupon Count
+    // 💳 Increment Coupon Count and add user
     if (appliedCoupon) {
       appliedCoupon.usedCount += 1;
+      appliedCoupon.usedBy.push(userId);
       await appliedCoupon.save();
     }
 
@@ -353,6 +365,9 @@ export const topupWallet = async (req, res) => {
 
     if (!amount || amount <= 0) {
       return res.status(400).json({ success: false, message: "Invalid amount" });
+    }
+    if (amount > 2000) {
+      return res.status(400).json({ success: false, message: "Maximum top-up limit is ₹2,000 per transaction" });
     }
 
     const user = await User.findById(userId);
@@ -387,8 +402,8 @@ export const withdrawWallet = async (req, res) => {
     const userId = req.user._id;
     const { amount, upiId } = req.body;
 
-    if (!amount || amount <= 0) {
-      return res.status(400).json({ success: false, message: "Invalid amount" });
+    if (!amount || amount < 500) {
+      return res.status(400).json({ success: false, message: "Minimum withdrawal amount is ₹500" });
     }
     if (!upiId) {
       return res.status(400).json({ success: false, message: "UPI ID is required" });

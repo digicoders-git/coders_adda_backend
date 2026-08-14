@@ -187,7 +187,7 @@ export const processNotification = async (notification) => {
       usersQuery.isSubscribed = true;
     }
 
-    const users = await User.find(usersQuery).select('_id fcmToken');
+    const users = await User.find(usersQuery).select('_id fcmToken email name');
 
     if (users.length === 0) return;
 
@@ -229,18 +229,49 @@ export const processNotification = async (notification) => {
         await admin.messaging().sendEachForMulticast({ ...message, tokens: chunkTokens })
           .then((response) => {
             console.log(`FCM send success: ${response.successCount}, failure: ${response.failureCount}`);
-            if (response.failureCount > 0) {
-              response.responses.forEach((resp, idx) => {
-                if (!resp.success) {
-                  console.error(`FCM failure for token ${chunkTokens[idx]}:`, resp.error);
-                }
-              });
-            }
           })
           .catch(err => {
             console.error('FCM send error:', err.message);
           });
       }
+    }
+
+    // --- SEND EMAILS TO USERS ---
+    // Only send emails for notifications that are not "edit" or "delete" related.
+    // Usually notifications are for announcements, new courses, new quizzes, etc.
+    const titleLower = notification.title.toLowerCase();
+    if (!titleLower.includes('edit') && !titleLower.includes('delete') && !titleLower.includes('remove')) {
+      const emailChunkSize = 50; // process in chunks to avoid overwhelming SMTP
+      for (let i = 0; i < users.length; i += emailChunkSize) {
+        const chunkUsers = users.slice(i, i + emailChunkSize);
+        await Promise.allSettled(chunkUsers.map(async (user) => {
+          if (user.email && user.email.includes('@')) {
+            const safeName = user.name || 'Student';
+            const emailHtml = `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+              <h2 style="color: #4CAF50; text-align: center;">Hello ${safeName},</h2>
+              <h3 style="color: #333; text-align: center;">${notification.title}</h3>
+              <p style="font-size: 16px; color: #333; text-align: center;">${notification.body}</p>
+              ${notification.actionLink ? `<div style="text-align: center; margin: 30px 0;">
+                <a href="${process.env.FRONTEND_URL || 'https://codersadda.in'}${notification.actionLink}" style="background-color: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">View Details</a>
+              </div>` : ''}
+              <p style="font-size: 14px; color: #666; text-align: center;">Keep learning and growing with CodersAdda!<br><em>The CodersAdda Team</em></p>
+            </div>`;
+            
+            // NOTE: Using the sendEmail function from utils
+            // We need to make sure sendEmail is imported in this file. It is imported at the top.
+            await sendEmail(
+              user.email,
+              notification.title,
+              notification.body,
+              emailHtml,
+              []
+            ).catch(err => {
+              console.error(`Email sending failed for ${user.email}:`, err.message);
+            });
+          }
+        }));
+      }
+      console.log(`Emails processed for notification: ${notification.title}`);
     }
 
     notification.status = 'Sent';
@@ -474,16 +505,33 @@ export const sendCertificateNotification = async (userId, courseId, certificateU
         + '</div>';
 
       const safeFileName = 'Certificate_' + safeTitle.replace(/[^a-zA-Z0-9]/g, '_') + '.png';
-      const attachments = certificateUrl ? [{ filename: safeFileName, path: certificateUrl }] : [];
+      const attachments = certificateUrl ? [{ filename: safeFileName, href: certificateUrl }] : [];
 
-      await sendEmail(
+      let emailSent = await sendEmail(
         user.email,
         'Congratulations! Certificate for ' + safeTitle,
         body,
         emailHtml,
         attachments
       );
-      console.log('[Notification] Certificate Email sent to ' + user.email);
+      
+      // If email failed (possibly due to attachment download failure like 404 or connection refused), retry without attachment
+      if (!emailSent && attachments.length > 0) {
+        console.log('[Notification] Retrying email without attachment to ' + user.email);
+        emailSent = await sendEmail(
+          user.email,
+          'Congratulations! Certificate for ' + safeTitle,
+          body,
+          emailHtml,
+          []
+        );
+      }
+
+      if (emailSent) {
+        console.log('[Notification] Certificate Email sent to ' + user.email);
+      } else {
+        console.log('[Notification] Failed to send Certificate Email to ' + user.email);
+      }
     }
   } catch (error) {
     console.error('[Notification] Error sending certificate notification:', error);

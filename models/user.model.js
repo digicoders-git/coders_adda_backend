@@ -49,6 +49,29 @@ const userSchema = new mongoose.Schema({
     default: null
   },
 
+  // Device ID for Single Device Login Enforcement
+  currentDeviceId: {
+    type: String,
+    default: null
+  },
+
+  // Login Approval state
+  loginApproval: {
+    status: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: null
+    },
+    requestedDeviceId: {
+      type: String,
+      default: null
+    },
+    requestedAt: {
+      type: Date,
+      default: null
+    }
+  },
+
   // Login method
   loginMethod: {
     type: String,

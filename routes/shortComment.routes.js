@@ -6,7 +6,8 @@ import {
   replyToComment,
   getCommentsByShort,
   getLatestComments,
-  deleteComment
+  deleteComment,
+  editComment
 } from "../controllers/shortComment.controller.js";
 
 const shortCommentRoutes = express.Router();
@@ -22,6 +23,12 @@ shortCommentRoutes.post("/reply/:commentId", verifyAdminToken, replyToComment);
 
 // User replies to comment (From Website/App)
 shortCommentRoutes.post("/user-reply/:commentId", userAuth, replyToComment);
+
+// User edits their comment
+shortCommentRoutes.put("/edit/:commentId", userAuth, editComment);
+
+// Admin edits their comment
+shortCommentRoutes.put("/admin-edit/:commentId", verifyAdminToken, editComment);
 
 // Get all comments of a short
 shortCommentRoutes.get("/get/:shortId", getCommentsByShort);

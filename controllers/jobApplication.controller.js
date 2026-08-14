@@ -43,17 +43,23 @@ export const applyForJob = async (req, res) => {
     // Handle Skills array parsing
     let parsedSkills = [];
     if (skills) {
-      try {
-        parsedSkills = JSON.parse(skills);
-      } catch (e) {
-        parsedSkills = skills.split(",").map(s => s.trim());
+      if (Array.isArray(skills)) {
+        parsedSkills = skills;
+      } else if (typeof skills === 'string') {
+        try {
+          parsedSkills = JSON.parse(skills);
+        } catch (e) {
+          parsedSkills = skills.split(",").map(s => s.trim());
+        }
       }
     }
 
     // 4. Job Access & Limit Deduction Check
     const user = await User.findById(userId).populate('purchaseSubscriptions.subscription');
     const isFreeJob = job.priceType === 'free';
-    const hasPurchasedDirectly = user.purchaseJobs.includes(jobId);
+    
+    // Safely check if jobId exists in user's purchaseJobs (ObjectId vs string issue)
+    const hasPurchasedDirectly = user.purchaseJobs && user.purchaseJobs.some(id => id.toString() === jobId.toString());
     
     // Calculate allowed free jobs from active subscriptions
     let totalAllowedFreeJobs = 0;
