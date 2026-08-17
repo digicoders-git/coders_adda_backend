@@ -30,6 +30,14 @@ export const createQuiz = async (req, res) => {
       });
     }
 
+    // Save custom questions into the Topic so they reflect on the topic page as well
+    if (customQuestions && customQuestions.length > 0) {
+      customQuestions.forEach((q) => {
+        topic.questions.push(q);
+      });
+      await topic.save();
+    }
+
     const quiz = await Quiz.create({
       title,
       quizCode,
@@ -285,7 +293,7 @@ export const sendQuizReminder = async (req, res) => {
     }
 
     // Call the notification utility
-    await sendQuizNotification(quiz, true);
+    await sendQuizNotification(quiz, 'reminder');
 
     res.json({
       success: true,

@@ -7,6 +7,7 @@ import cloudinary from "../config/cloudinary.js";
 import Payment from "../models/payment.model.js";
 import { purchasableItemsMap } from "../services/purchasableItemsMap.js";
 import QuizCertificate from "../models/quizCertificate.model.js";
+import Certificate from "../models/certificate.model.js";
 import fs from "fs";
 import path from "path";
 import admin from "../config/firebase.js";
@@ -127,9 +128,10 @@ export const verifyMobileOtp = async (req, res) => {
 
     // Check if account is blocked
     if (user.isActive === false) {
-      return res.status(400).json({
+      return res.status(403).json({
         success: false,
-        message: 'Your account is blocked, contact to DigiCoders'
+        message: 'Your account is blocked, contact to DigiCoders',
+        code: 'USER_BLOCKED'
       });
     }
 
@@ -365,6 +367,15 @@ export const googleLogin = async (req, res) => {
     }
   }
 
+    // Check if account is blocked
+    if (user.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account is blocked, contact to DigiCoders',
+        code: 'USER_BLOCKED'
+      });
+    }
+
     // Generate JWT token
     const token = generateToken(user._id);
 
@@ -451,6 +462,11 @@ export const getProfile = async (req, res) => {
       .populate("quiz", "title quizCode")
       .sort({ issuedAt: -1 });
 
+    // Fetch Course Certificates for completion count
+    const courseCertificates = await Certificate.find({ user: userId })
+      .populate("course", "title")
+      .sort({ issuedAt: -1 });
+
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -491,6 +507,7 @@ export const getProfile = async (req, res) => {
     const userObj = user.toObject();
     userObj.purchaseCourses = coursesWithContent;
     userObj.quizCertificates = quizCertificates;
+    userObj.courseCertificates = courseCertificates;
 
     return res.json({
       success: true,
@@ -602,6 +619,15 @@ export const updateUserProfile = async (req, res) => {
         url: imageUrl,
         public_id: req.file.filename
       };
+    } else if (req.body.removePhoto === 'true') {
+      // If user wants to delete existing photo
+      if (user.profilePicture && user.profilePicture.public_id) {
+        const oldFilePath = path.join("uploads/users/profile_pictures", user.profilePicture.public_id);
+        if (fs.existsSync(oldFilePath)) {
+          fs.unlinkSync(oldFilePath);
+        }
+      }
+      user.profilePicture = { url: "", public_id: "" };
     }
 
     await user.save();
@@ -672,22 +698,71 @@ export const updateUserProfile = async (req, res) => {
 
 export const updateUserIsActive = async (req, res) => {
   try {
-    const { id } = req.params
-    // console.log(id)
+    const { id } = req.params;
     const user = await User.findOne({ _id: id });
-    // console.log(user)
 
     if (!user) {
       return res.status(404).json({ message: "User not found !" });
     }
 
+    const isBlockedUser = await User.findOneAndUpdate({ _id: id }, { isActive: !user.isActive }, { new: true });
+    
+    // If user is now blocked (isActive is false)
+    if (!isBlockedUser.isActive) {
+      // 1. Send SMS
+      try {
+        const { sendCustomSms } = await import('../utils/sendSms.js');
+        const smsMessage = `Your account has been blocked by the admin. Please contact support for help.`;
+        await sendCustomSms(user.mobile, smsMessage);
+      } catch (e) {
+        console.error("Failed to send block SMS:", e);
+      }
 
-    const isBlockedUser = await User.findOneAndUpdate({ _id: id }, { isActive: !user.isActive }, { new: true })
-    // console.log(isBlockedUser)
-    return res.status(201).json({ message: isBlockedUser.isActive ? "User blocked" : "User unblocked", isBlockedUser })
+      // 2. Send Firebase Notification if FCM token exists
+      if (user.fcmToken) {
+        try {
+          const message = {
+            notification: {
+              title: "Account Blocked",
+              body: "Your account has been blocked by the admin. Please contact support."
+            },
+            token: user.fcmToken,
+            data: { type: 'account_blocked' }
+          };
+          await admin.messaging().send(message);
+        } catch (e) {
+          console.error("Failed to send Firebase block notification:", e);
+        }
+      }
+
+      // 3. Save to In-App Notifications
+      try {
+        const { Notification, UserNotification } = await import('../models/notification.model.js');
+        const notification = new Notification({
+          title: "Account Blocked",
+          body: "Your account has been blocked by the admin. Please contact support.",
+          type: "Info",
+          targetGroup: "All",
+          targetUsers: [user._id],
+          priority: "High",
+          status: "Sent"
+        });
+        await notification.save();
+        
+        await UserNotification.create({
+          user: user._id,
+          notification: notification._id,
+          isRead: false
+        });
+      } catch (e) {
+        console.error("Failed to save block notification to DB:", e);
+      }
+    }
+
+    return res.status(201).json({ message: isBlockedUser.isActive ? "User unblocked" : "User blocked", isBlockedUser });
 
   } catch (error) {
-    return res.status(500).json({ message: "Inernal Server Error", error: error.message })
+    return res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 }
 

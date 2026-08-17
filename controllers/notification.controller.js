@@ -326,11 +326,22 @@ export const sendCourseUpdateNotification = async (courseId, type, resourceTitle
 };
 
 // --- AUTO TRIGGER: Quiz Notification ---
-export const sendQuizNotification = async (quiz) => {
+export const sendQuizNotification = async (quiz, type = 'added') => {
   try {
+    let title = `New Quiz Available: ${quiz.title}`;
+    let body = `A new ${quiz.level || 'General'} level quiz has been added! Check it out now.`;
+
+    if (type === 'reminder') {
+      title = `Reminder: ${quiz.title}`;
+      body = `Don't forget! Your quiz is coming up soon. Get ready!`;
+    } else if (type === 'live') {
+      title = `Quiz is Live: ${quiz.title}`;
+      body = `The quiz has officially started! Join now to test your knowledge!`;
+    }
+
     const notification = new Notification({
-      title: `New Quiz Available: ${quiz.title}`,
-      body: `A new ${quiz.level || 'General'} level quiz is live! Challenge yourself now!`,
+      title,
+      body,
       actionLink: `/quiz`,
       priority: 'High',
       targetGroup: 'All',
@@ -341,7 +352,7 @@ export const sendQuizNotification = async (quiz) => {
     await notification.save();
     await processNotification(notification);
 
-    console.log(`Quiz notification sent: ${quiz.title}`);
+    console.log(`Quiz notification sent [${type}]: ${quiz.title}`);
   } catch (err) {
     console.error('Quiz notification failed:', err.message);
   }

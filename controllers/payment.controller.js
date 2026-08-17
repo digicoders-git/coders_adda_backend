@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import mongoose from "mongoose";
 import razorpay from "../config/razorpay.js";
 import Payment from "../models/payment.model.js";
 import User from "../models/user.model.js";
@@ -477,6 +478,39 @@ export const getMyPaymentHistory = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
       
+    // Attach item details for frontend
+    for (let p of payments) {
+      p.itemDetails = { title: p.itemType.toUpperCase() };
+      
+      try {
+        if (p.itemType === 'course') {
+          const Course = mongoose.model('Course');
+          const course = await Course.findById(p.itemId);
+          if (course) p.itemDetails.title = course.title;
+        } else if (p.itemType === 'ebook') {
+          const Ebook = mongoose.model('Ebook');
+          const ebook = await Ebook.findById(p.itemId);
+          if (ebook) p.itemDetails.title = ebook.title;
+        } else if (p.itemType === 'subscription') {
+          const Subscription = mongoose.model('Subscription');
+          const sub = await Subscription.findById(p.itemId);
+          if (sub) p.itemDetails.title = sub.planType;
+        } else if (p.itemType === 'job') {
+          const Job = mongoose.model('Job');
+          const job = await Job.findById(p.itemId);
+          if (job) p.itemDetails.title = job.jobTitle;
+        } else if (p.itemType === 'wallet_deposit') {
+          p.itemDetails.title = "Wallet Top-up";
+        } else if (p.itemType === 'wallet_withdrawal') {
+          p.itemDetails.title = "Wallet Withdrawal";
+        } else if (p.itemType === 'referral_reward') {
+          p.itemDetails.title = "Referral Reward";
+        }
+      } catch (e) {
+        // ignore errors if model not found
+      }
+    }
+
     return res.status(200).json({ success: true, data: payments });
   } catch (err) {
     console.error("Get Payment History Error:", err);

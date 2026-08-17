@@ -20,7 +20,7 @@ export const getMyLibrary = async (req, res) => {
       // ========== EBOOKS ==========
       .populate({
         path: "purchaseEbooks",
-        select: "title authorName priceType price pdf isActive"
+        select: "title authorName priceType price pdf image isActive"
       })
       // ========== JOBS ==========
       .populate({
@@ -41,7 +41,7 @@ export const getMyLibrary = async (req, res) => {
           },
           {
             path: "includedEbooks",
-            select: "title authorName priceType price pdf isActive"
+            select: "title authorName priceType price pdf image isActive"
           }
         ]
       });

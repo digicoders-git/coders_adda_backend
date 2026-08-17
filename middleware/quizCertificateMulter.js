@@ -1,26 +1,8 @@
 import multer from "multer";
-import path from "path";
-import fs from "fs";
-import os from "os";
 
-import { fileURLToPath } from 'url';
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const isRender = process.env.RENDER === "true";
-    const rootDir = isRender ? os.tmpdir() : path.resolve(__dirname, "..");
-    const uploadDir = path.resolve(rootDir, "uploads/quiz-certificates");
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, "quiz-cert-" + uniqueSuffix + path.extname(file.originalname));
-  },
-});
+// Use memory storage — file is available as req.file.buffer
+// Controller uploads it directly to Cloudinary (no local disk needed)
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,

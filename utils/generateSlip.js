@@ -1,7 +1,11 @@
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import fs from 'fs';
-import path from 'path';
+import path, { dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 export const generateSlipBuffer = async (payment, user) => {
   return new Promise((resolve, reject) => {
@@ -35,7 +39,7 @@ export const generateSlipBuffer = async (payment, user) => {
 
       // Add Logo Image
       try {
-        const logoPath = path.join(process.cwd(), '../dashboard/src/assets/mainLogo.png');
+        const logoPath = path.join(__dirname, '../assets/mainLogo.png');
         if (fs.existsSync(logoPath)) {
           const logoData = fs.readFileSync(logoPath);
           const logoBase64 = logoData.toString('base64');

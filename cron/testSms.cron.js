@@ -1,3 +1,4 @@
+
 import cron from 'node-cron';
 import Quiz from '../models/quiz.model.js';
 
@@ -20,7 +21,7 @@ cron.schedule('* * * * *', async () => {
 
       for (const test of pendingTests) {
         // Only send Push Notification (App Notification)
-        await sendQuizNotification(test, true);
+        await sendQuizNotification(test, 'live');
         console.log(`[CRON] Auto Push Notification triggered for ${test.title}.`);
         
         test.startSmsSent = true;

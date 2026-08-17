@@ -29,6 +29,14 @@ const userAuth = async (req, res, next) => {
       });
     }
 
+    if (user.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: "Your account is blocked by admin",
+        code: "USER_BLOCKED"
+      });
+    }
+
     // Attach user to request
     req.user = user;
     req.userId = user._id;

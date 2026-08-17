@@ -31,10 +31,33 @@ export const saveQuizCertificateTemplate = async (req, res) => {
 
     let template = await QuizCertificateTemplate.findOne({ quiz: quizId });
 
-    // Handle Image Upload Localy
     let certificateImageUrl = template?.certificateImage;
     if (req.file) {
-      certificateImageUrl = `/uploads/quiz-certificates/${req.file.filename}`;
+      console.log(`[CertTemplate] File received: ${req.file.originalname}, size: ${req.file.size}`);
+      try {
+        const cloudinary = (await import('../config/cloudinary.js')).default;
+
+        // Upload from buffer (memoryStorage) directly to Cloudinary
+        const cloudUrl = await new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { folder: 'quiz-certificates' },
+            (error, result) => {
+              if (error) return reject(error);
+              resolve(result.secure_url);
+            }
+          );
+          stream.end(req.file.buffer);
+        });
+
+        certificateImageUrl = cloudUrl;
+        console.log(`[CertTemplate] Cloudinary upload SUCCESS: ${cloudUrl}`);
+      } catch (cloudErr) {
+        console.error(`[CertTemplate] Cloudinary upload FAILED:`, cloudErr.message);
+        return res.status(500).json({
+          success: false,
+          message: `Failed to upload certificate image: ${cloudErr.message}`
+        });
+      }
     }
 
     if (!certificateImageUrl) {
@@ -95,6 +118,16 @@ export const issueQuizCertificateManual = async (req, res) => {
     const template = await QuizCertificateTemplate.findOne({ quiz: quizId });
     if (!template || !template.status) {
       return res.status(404).json({ success: false, message: "Certificate template not found or disabled" });
+    }
+
+    // Check template image is a valid Cloudinary URL (not a broken local path)
+    const imgPath = template.certificateImage || '';
+    const isCloudinaryUrl = imgPath.startsWith('http://') || imgPath.startsWith('https://');
+    if (!isCloudinaryUrl) {
+      return res.status(400).json({
+        success: false,
+        message: "Certificate template image is missing or outdated. Please ask admin to re-upload the certificate template."
+      });
     }
 
     // Generate Certificate

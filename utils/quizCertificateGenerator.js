@@ -61,11 +61,23 @@ export const generateQuizCertificate = async (userId, quizId, template, extraDat
 
     // Load Background Template Image
     let bkgPath = template.certificateImage;
-    if (bkgPath && bkgPath.startsWith("/uploads")) {
-      bkgPath = path.join(process.cwd(), bkgPath);
+    if (!bkgPath) throw new Error("Certificate template has no background image.");
+
+    // If it's a local path (old template), convert to absolute and check existence
+    if (bkgPath.startsWith("/uploads")) {
+      const localPath = path.join(process.cwd(), bkgPath);
+      if (!fs.existsSync(localPath)) {
+        console.error(`⚠️  Certificate background image not found on disk: ${localPath}`);
+        console.error(`   Please re-upload the certificate template for quiz: ${quizId}`);
+        return null; // Gracefully skip instead of crashing
+      }
+      bkgPath = localPath;
     }
+    // Cloudinary / http URLs are loaded directly by canvas — no change needed
+
     const image = await loadImage(bkgPath);
     ctx.drawImage(image, 0, 0, width, height);
+
 
     // Draw text based on template config
     const drawTemplateText = (config, text) => {

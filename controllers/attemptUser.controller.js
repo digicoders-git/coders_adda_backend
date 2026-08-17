@@ -1,4 +1,6 @@
 import AttemptUser from "../models/attemptUser.model.js";
+import User from "../models/user.model.js";
+import { sendCustomSms } from "../utils/sendSms.js";
 import Quiz from "../models/quiz.model.js";
 import QuestionTopic from "../models/questionTopic.model.js";
 import QuizCertificateTemplate from "../models/quizCertificateTemplate.model.js";
@@ -98,14 +100,28 @@ export const createAttempt = async (req, res) => {
 
     const template = await QuizCertificateTemplate.findOne({ quiz: quizId });
     if (template && template.status) {
-      // Generate certificate regardless of marks
-      const certificate = await generateQuizCertificate(studentId, quizId, template, {
-        totalScore: `${marks} / ${totalMarks}`,
-      });
-      if (certificate) {
-        certificateIssued = true;
-        certificateDetails = certificate;
+      const imgPath = template.certificateImage || '';
+      const isCloudinaryUrl = imgPath.startsWith('http://') || imgPath.startsWith('https://');
+      if (isCloudinaryUrl) {
+        const certificate = await generateQuizCertificate(studentId, quizId, template, {
+          totalScore: `${marks} / ${totalMarks}`,
+        });
+        if (certificate) {
+          certificateIssued = true;
+          certificateDetails = certificate;
+        }
       }
+    }
+
+    // 6. Send SMS Notification
+    try {
+      const student = await User.findById(studentId);
+      if (student && student.phone) {
+        const message = `Dear Student, you have successfully submitted the quiz "${quiz.title}". Your score is ${marks}/${totalMarks}. Regards, CodersAdda.`;
+        await sendCustomSms(student.phone, message);
+      }
+    } catch (smsError) {
+      console.error("Failed to send quiz completion SMS:", smsError);
     }
 
     res.status(201).json({
@@ -159,16 +175,22 @@ export const getMyAttempts = async (req, res) => {
       
       let certificateUrl = quizIdStr ? certMap[quizIdStr] : null;
 
-      // Lazy certificate generation if no certificate exists
+      // Lazy certificate generation — only if template has a valid Cloudinary URL
+      // Skip if it's an old local path (file may not exist on disk)
       if (!certificateUrl && quizIdStr) {
         const template = await QuizCertificateTemplate.findOne({ quiz: quizIdStr });
         if (template && template.status) {
-          const newCert = await generateQuizCertificate(studentId, quizIdStr, template, {
-            totalScore: `${attempt.marks} / ${attempt.totalMarks}`,
-          });
-          if (newCert) {
-            certificateUrl = newCert.certificateUrl;
+          const imgPath = template.certificateImage || '';
+          const isCloudinaryUrl = imgPath.startsWith('http://') || imgPath.startsWith('https://');
+          if (isCloudinaryUrl) {
+            const newCert = await generateQuizCertificate(studentId, quizIdStr, template, {
+              totalScore: `${attempt.marks} / ${attempt.totalMarks}`,
+            });
+            if (newCert) {
+              certificateUrl = newCert.certificateUrl;
+            }
           }
+          // else: local path template is broken — admin must re-upload image
         }
       }
 
@@ -213,16 +235,20 @@ export const getAttemptsByQuiz = async (req, res) => {
       let certificateUrl = studentIdStr ? certMap[studentIdStr] : null;
       let certificateGenerated = studentIdStr ? certifiedStudents.has(studentIdStr) : false;
 
-      // Lazy certificate generation if no certificate exists
+      // Lazy certificate generation — only if template has a valid Cloudinary URL
       if (!certificateUrl && studentIdStr) {
         const template = await QuizCertificateTemplate.findOne({ quiz: quizId });
         if (template && template.status) {
-          const newCert = await generateQuizCertificate(studentIdStr, quizId, template, {
-            totalScore: `${attempt.marks} / ${attempt.totalMarks}`,
-          });
-          if (newCert) {
-            certificateUrl = newCert.certificateUrl;
-            certificateGenerated = true;
+          const imgPath = template.certificateImage || '';
+          const isCloudinaryUrl = imgPath.startsWith('http://') || imgPath.startsWith('https://');
+          if (isCloudinaryUrl) {
+            const newCert = await generateQuizCertificate(studentIdStr, quizId, template, {
+              totalScore: `${attempt.marks} / ${attempt.totalMarks}`,
+            });
+            if (newCert) {
+              certificateUrl = newCert.certificateUrl;
+              certificateGenerated = true;
+            }
           }
         }
       }
