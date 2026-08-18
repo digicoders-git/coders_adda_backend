@@ -148,7 +148,7 @@ export const updateSupportTicketStatus = async (req, res) => {
           });
 
           await notification.save();
-          await processNotification(notification);
+          processNotification(notification).catch(err => console.error("Ticket notification error:", err));
         }
       } catch (notifErr) {
         console.error("Failed to send ticket reply notification:", notifErr);

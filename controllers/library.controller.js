@@ -11,16 +11,16 @@ export const getMyLibrary = async (req, res) => {
       // ========== COURSES ==========
       .populate({
         path: "purchaseCourses",
-        select: "title thumbnail priceType price technology badge isActive instructor category",
+        select: "title thumbnail priceType price technology badge isActive instructor category duration reviews curriculum",
         populate: [
-          { path: "instructor", select: "name profilePicture" },
+          { path: "instructor", select: "fullName profilePicture" },
           { path: "category", select: "name" }
         ]
       })
       // ========== EBOOKS ==========
       .populate({
         path: "purchaseEbooks",
-        select: "title authorName priceType price pdf image isActive"
+        select: "title authorName priceType price pdf image isActive views rating totalReviews"
       })
       // ========== JOBS ==========
       .populate({
@@ -33,15 +33,15 @@ export const getMyLibrary = async (req, res) => {
         populate: [
           {
             path: "includedCourses",
-            select: "title thumbnail priceType price technology badge isActive instructor category",
+            select: "title thumbnail priceType price technology badge isActive instructor category duration reviews curriculum",
             populate: [
-              { path: "instructor", select: "name profilePicture" },
+              { path: "instructor", select: "fullName profilePicture" },
               { path: "category", select: "name" }
             ]
           },
           {
             path: "includedEbooks",
-            select: "title authorName priceType price pdf image isActive"
+            select: "title authorName priceType price pdf image isActive views rating totalReviews"
           }
         ]
       });

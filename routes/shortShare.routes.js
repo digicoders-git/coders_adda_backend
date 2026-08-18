@@ -1,5 +1,5 @@
 import express from "express";
-import userAuth from "../middleware/userAuth.js";
+import optionalUserAuth from "../middleware/optionalUserAuth.js";
 import {
   addShare,
   getSharesByShort
@@ -8,7 +8,7 @@ import {
 const shortShareRoute = express.Router();
 
 // User shares a short
-shortShareRoute.post("/add/:shortId", userAuth, addShare);
+shortShareRoute.post("/add/:shortId", optionalUserAuth, addShare);
 
 // Admin: see who shared this short
 shortShareRoute.get("/get/:shortId", getSharesByShort);

@@ -19,7 +19,10 @@ const userAuth = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     // Find user
-    const user = await User.findById(decoded.userId);
+    const user = await User.findById(decoded.userId).populate({
+      path: "purchaseSubscriptions.subscription",
+      select: "includedCourses"
+    });
     // console.log(user)
 
     if (!user) {
@@ -38,6 +41,19 @@ const userAuth = async (req, res, next) => {
     }
 
     // Attach user to request
+    const now = new Date();
+    user.purchaseSubscriptions?.forEach(sub => {
+      if (sub.subscription && sub.subscription.includedCourses) {
+        if (!sub.endDate || new Date(sub.endDate) > now) {
+          sub.subscription.includedCourses.forEach(courseId => {
+            if (!user.purchaseCourses.some(id => id.toString() === courseId.toString())) {
+              user.purchaseCourses.push(courseId);
+            }
+          });
+        }
+      }
+    });
+
     req.user = user;
     req.userId = user._id;
 

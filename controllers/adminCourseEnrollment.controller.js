@@ -234,14 +234,47 @@ export const getCourseStudents = async (req, res) => {
 export const toggleCourseAccess = async (req, res) => {
   try {
     const { userId, courseId } = req.body;
-    // For now, let's just pull it from purchaseCourses to "Block" it
-    // Or we can maintain a blockedCourses list.
-    // Let's assume blocking means removing from purchaseCourses for now, 
-    // but the user wants "Block without blocking user".
+    
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-    // Suggestion: Add a field to User model 'blockedCourses'
-    // For now, let's just mock a success response or update a field if I decide to add it.
-    res.status(200).json({ success: true, message: "Course access updated" });
+    const courseIndex = user.purchaseCourses.findIndex(id => id.toString() === courseId.toString());
+    let isBlocked = false;
+
+    if (courseIndex > -1) {
+      // Block access: Remove from purchaseCourses
+      user.purchaseCourses.splice(courseIndex, 1);
+      isBlocked = true;
+
+      const course = await mongoose.model("Course").findById(courseId);
+      
+      const { Notification } = await import("../models/notification.model.js");
+      const { processNotification } = await import("../controllers/notification.controller.js");
+      const { sendCustomSms } = await import("../utils/sendSms.js");
+
+      const notification = new Notification({
+        title: "Course Access Blocked 🚫",
+        body: `Hi ${user.name}, your access to the course "${course?.title || 'Unknown'}" has been blocked by the admin. Contact support for details.`,
+        priority: "High",
+        targetGroup: "Specific",
+        targetUsers: [user._id.toString()],
+        status: "Pending"
+      });
+      await notification.save();
+      processNotification(notification).catch(err => console.error("Block Course Push error:", err));
+
+      if (user.mobile) {
+        sendCustomSms(user.mobile, `Hi ${user.name}, your access to a CodersAdda course has been blocked by the admin. Please contact support.`)
+          .catch(err => console.error("Block Course SMS error:", err));
+      }
+    } else {
+      // Unblock access: Add to purchaseCourses
+      user.purchaseCourses.push(courseId);
+    }
+
+    await user.save();
+
+    res.status(200).json({ success: true, message: `Course access ${isBlocked ? 'blocked' : 'restored'} successfully` });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

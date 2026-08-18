@@ -43,4 +43,7 @@ const shortSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+shortSchema.index({ createdAt: -1 });
+shortSchema.index({ isActive: 1 });
+
 export default mongoose.model("Short", shortSchema);

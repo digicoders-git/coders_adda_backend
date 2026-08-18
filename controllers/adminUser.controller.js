@@ -392,6 +392,32 @@ export const toggleUserStatus = async (req, res) => {
     user.isActive = !user.isActive;
     await user.save();
 
+    // If user is blocked (isActive = false), send notifications
+    if (!user.isActive) {
+      const { Notification } = await import("../models/notification.model.js");
+      const { processNotification } = await import("../controllers/notification.controller.js");
+      const { sendCustomSms } = await import("../utils/sendSms.js");
+
+      // Push notification
+      const notification = new Notification({
+        title: "Account Suspended 🚫",
+        body: `Hi ${user.name}, your account has been temporarily blocked by the admin. Contact support for details.`,
+        priority: "High",
+        targetGroup: "Specific",
+        targetUsers: [user._id.toString()],
+        status: "Pending"
+      });
+      await notification.save();
+      // Fire and forget
+      processNotification(notification).catch(err => console.error("Block Push error:", err));
+
+      // Send SMS
+      if (user.mobile) {
+        sendCustomSms(user.mobile, `Hi ${user.name}, your CodersAdda account has been temporarily blocked. Please contact support.`)
+          .catch(err => console.error("Block SMS error:", err));
+      }
+    }
+
     return res.status(200).json({
       success: true,
       message: `User ${user.isActive ? "activated" : "deactivated"} successfully`,

@@ -31,6 +31,12 @@ export const sendOtpSms = async (dsMobile, otp) => {
 
 export const sendCustomSms = async (dsMobile, message, dltTeId) => {
   try {
+    // 🔥 NEW LOGIC: Allow turning off live SMS via .env
+    if (process.env.ENABLE_LIVE_SMS === "false") {
+      console.log(`[SMS MOCKED] To: ${dsMobile} | Message: ${message}`);
+      return true; // Pretend it was successful
+    }
+
     const encodedMessage = encodeURIComponent(message);
     // Use provided DLT_TE_ID or fallback to default
     const dlt = dltTeId || process.env.DLT_TE_ID;

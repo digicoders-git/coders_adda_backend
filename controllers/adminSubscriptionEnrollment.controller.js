@@ -166,16 +166,37 @@ export const extendSubscription = async (req, res) => {
   }
 };
 
-/* ================= CANCEL SUBSCRIPTION ================= */
 export const cancelSubscription = async (req, res) => {
   try {
     const { enrollmentId } = req.body;
 
-    const enrollment = await SubscriptionPurchase.findById(enrollmentId);
+    const enrollment = await SubscriptionPurchase.findById(enrollmentId).populate("user");
     if (!enrollment) return res.status(404).json({ message: "Enrollment not found" });
 
     enrollment.status = "cancelled";
     await enrollment.save();
+
+    if (enrollment.user) {
+      const { Notification } = await import("../models/notification.model.js");
+      const { processNotification } = await import("../controllers/notification.controller.js");
+      const { sendCustomSms } = await import("../utils/sendSms.js");
+
+      const notification = new Notification({
+        title: "Plan Cancelled 🚫",
+        body: `Hi ${enrollment.user.name}, your subscription plan has been cancelled by the admin. Contact support for details.`,
+        priority: "High",
+        targetGroup: "Specific",
+        targetUsers: [enrollment.user._id.toString()],
+        status: "Pending"
+      });
+      await notification.save();
+      processNotification(notification).catch(err => console.error("Cancel Sub Push error:", err));
+
+      if (enrollment.user.mobile) {
+        sendCustomSms(enrollment.user.mobile, `Hi ${enrollment.user.name}, your CodersAdda subscription plan has been cancelled by the admin. Please contact support.`)
+          .catch(err => console.error("Cancel Sub SMS error:", err));
+      }
+    }
 
     res.json({ success: true, message: "Subscription cancelled successfully" });
   } catch (error) {

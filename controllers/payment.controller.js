@@ -58,10 +58,10 @@ export const createOrder = async (req, res) => {
         return res.status(400).json({ message: `Minimum purchase of ₹${coupon.minPurchaseAmount} required for this coupon` });
       }
 
-      discountAmount = (amount * coupon.discountPercent) / 100;
+      discountAmount = (Number(amount) * Number(coupon.discountPercent)) / 100;
 
-      if (coupon.maxDiscountAmount) {
-        discountAmount = Math.min(discountAmount, coupon.maxDiscountAmount);
+      if (coupon.maxDiscountAmount && Number(coupon.maxDiscountAmount) > 0) {
+        discountAmount = Math.min(discountAmount, Number(coupon.maxDiscountAmount));
       }
 
       finalAmount = Math.max(0, amount - discountAmount);

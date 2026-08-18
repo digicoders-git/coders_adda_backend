@@ -125,18 +125,26 @@ const registerProgressSocket = (socket, io) => {
         if (courseData?.certificateTemplate) {
           const template = await CertificateTemplate.findById(courseData.certificateTemplate);
           if (template) {
-            const certificate = await generateCertificate(userId, courseId, template);
-            if (certificate) {
+            const existingCert = await Certificate.findOne({ user: userId, course: courseId });
+            if (existingCert) {
               socket.emit("certificate:issued", {
-                certificateUrl: certificate.certificateUrl,
+                certificateUrl: existingCert.certificateUrl,
                 message: "Congratulations! You've earned a certificate."
               });
+            } else {
+              const certificate = await generateCertificate(userId, courseId, template);
+              if (certificate) {
+                socket.emit("certificate:issued", {
+                  certificateUrl: certificate.certificateUrl,
+                  message: "Congratulations! You've earned a certificate."
+                });
 
               // Trigger App & Email Notification
               sendCertificateNotification(userId, courseId, certificate.certificateUrl).catch(err => {
                  console.error("[SOCKET] Failed to send certificate notification:", err);
               });
             }
+            } // Close the else block
           }
         }
       }

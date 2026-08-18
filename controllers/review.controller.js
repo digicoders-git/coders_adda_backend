@@ -72,9 +72,16 @@ export const getAllReviews = async (req, res) => {
 
     const total = await Review.countDocuments(filter);
 
+    const aggregate = await Review.aggregate([
+      { $match: filter },
+      { $group: { _id: null, averageRating: { $avg: "$rating" } } }
+    ]);
+    const averageRating = aggregate.length > 0 ? parseFloat(aggregate[0].averageRating.toFixed(1)) : 0;
+
     return res.status(200).json({
       success: true,
       total,
+      averageRating,
       data: reviews
     });
   } catch (error) {

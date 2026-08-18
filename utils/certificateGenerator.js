@@ -39,6 +39,24 @@ export const generateCertificate = async (userId, courseId, template) => {
     if (!user || !course) throw new Error("User or Course not found");
 
     const certId = `CERT-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    let pendingCert;
+    try {
+      pendingCert = await Certificate.create({
+        user: userId,
+        course: courseId,
+        certificateUrl: "pending",
+        certificateId: certId,
+        issuedAt: new Date()
+      });
+    } catch (err) {
+      if (err.code === 11000) {
+        console.log(`[CERT] Race condition prevented for ${userId}-${courseId}`);
+        return await Certificate.findOne({ user: userId, course: courseId });
+      }
+      throw err;
+    }
+
     const issueDate = new Date().toLocaleDateString("en-IN", {
       day: "2-digit",
       month: "2-digit",
@@ -137,16 +155,11 @@ export const generateCertificate = async (userId, courseId, template) => {
       certificateUrl = `${process.env.BASE_URL}/uploads/certificates/issued/${fileName}`;
     }
 
-    // Save to Database
-    const certificate = await Certificate.create({
-      user: userId,
-      course: courseId,
-      certificateUrl: certificateUrl,
-      certificateId: certId,
-      issuedAt: new Date()
-    });
+    // Update Database
+    pendingCert.certificateUrl = certificateUrl;
+    await pendingCert.save();
 
-    return certificate;
+    return pendingCert;
 
   } catch (error) {
     console.error("❌ Canvas Certificate Generation Error:", error);

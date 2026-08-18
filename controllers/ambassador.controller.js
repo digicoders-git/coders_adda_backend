@@ -121,12 +121,13 @@ export const adminApproveApplication = async (req, res) => {
       status: "Pending"
     });
     await notification.save();
-    await processNotification(notification);
+    await notification.save();
+    processNotification(notification).catch(err => console.error("Ambassador Push error:", err));
 
     // Send SMS
     if (user.mobile) {
       const smsMessage = `Congratulations ${application.fullName}! You are now a Campus Ambassador. Your referral code is ${generatedCode}. From CodersAdda.`;
-      await sendCustomSms(user.mobile, smsMessage);
+      sendCustomSms(user.mobile, smsMessage).catch(err => console.error("Ambassador SMS error:", err));
     }
 
     res.status(200).json({ success: true, message: "Application approved!", referralCode: user.referralCode });
@@ -158,7 +159,7 @@ export const adminRejectApplication = async (req, res) => {
       status: "Pending"
     });
     await notification.save();
-    await processNotification(notification);
+    processNotification(notification).catch(err => console.error("Ambassador Reject Push error:", err));
 
     res.status(200).json({ success: true, message: "Application rejected" });
   } catch (error) {
@@ -201,11 +202,11 @@ export const adminBlockUnblockAmbassador = async (req, res) => {
         status: "Pending"
       });
       await notification.save();
-      await processNotification(notification);
+      processNotification(notification).catch(err => console.error("Ambassador Block/Unblock Push error:", err));
 
       // Send SMS
       if (user.mobile) {
-        await sendCustomSms(user.mobile, smsMessage);
+        sendCustomSms(user.mobile, smsMessage).catch(err => console.error("Ambassador Block/Unblock SMS error:", err));
       }
     }
 

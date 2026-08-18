@@ -50,4 +50,9 @@ const paymentSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Indexes for faster aggregation and filtering
+paymentSchema.index({ status: 1, createdAt: -1 });
+paymentSchema.index({ createdAt: -1 });
+paymentSchema.index({ itemType: 1 });
+
 export default mongoose.model("Payment", paymentSchema);

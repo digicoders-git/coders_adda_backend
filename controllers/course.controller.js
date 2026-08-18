@@ -209,12 +209,14 @@ export const getAllCourses = async (req, res) => {
 
     const data = await Promise.all(
       rawCourses.map(async (c) => {
-        const studentCount = await User.countDocuments({ purchaseCourses: c._id });
+        const studentCount = await mongoose.model("User").countDocuments({ purchaseCourses: c._id });
+        const lessonCount = await mongoose.model("Lecture").countDocuments({ course: c._id });
         return {
           ...c,
           duration: c.duration || "",
           totalStudents: studentCount || 0,
-          studentsCount: studentCount || 0
+          studentsCount: studentCount || 0,
+          totalLessons: lessonCount || 0
         };
       })
     );

@@ -12,7 +12,7 @@ const shortShareSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       // ref: "User"  // ❌ abhi User model nahi hai
-      required: true,
+      required: false,
       index: true
     }
   },

@@ -292,8 +292,8 @@ export const sendQuizReminder = async (req, res) => {
       return res.status(400).json({ success: false, message: "Quiz does not have a scheduled start time" });
     }
 
-    // Call the notification utility
-    await sendQuizNotification(quiz, 'reminder');
+    // Call the notification utility asynchronously
+    sendQuizNotification(quiz, 'live').catch(err => console.error("Quiz reminder push error:", err));
 
     res.json({
       success: true,

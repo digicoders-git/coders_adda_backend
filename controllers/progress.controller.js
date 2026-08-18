@@ -87,7 +87,14 @@ export const updateProgressREST = async (req, res) => {
         if (template) {
           console.log(`[REST] Generating certificate...`);
           try {
-            const certificate = await generateCertificate(userId, courseId, template);
+            const existingCert = await Certificate.findOne({ user: userId, course: courseId });
+            if (existingCert) {
+              console.log(`[REST] Certificate already exists for this user and course.`);
+              certificateIssued = true;
+              certificateUrl = existingCert.certificateUrl;
+              debugReason = "Already existed";
+            } else {
+              const certificate = await generateCertificate(userId, courseId, template);
             if (certificate) {
               certificateIssued = true;
               certificateUrl = certificate.certificateUrl;
@@ -101,6 +108,7 @@ export const updateProgressREST = async (req, res) => {
             } else {
               debugReason = "generateCertificate returned null";
             }
+            } // Close the else block
           } catch(certError) {
              debugReason = "Puppeteer Error: " + certError.message;
              console.error(`[REST] Certificate Generation Failed:`, certError);
@@ -128,5 +136,52 @@ export const updateProgressREST = async (req, res) => {
   } catch (error) {
     console.error("❌ REST Progress update error:", error);
     return res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+export const getProgressByCourseREST = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { courseId } = req.params;
+
+    if (!courseId) {
+      return res.status(400).json({ success: false, message: "Course ID is required" });
+    }
+
+    const progressDocs = await UserProgress.find({ user: userId, course: courseId });
+    return res.status(200).json({
+      success: true,
+      data: progressDocs
+    });
+  } catch (error) {
+    console.error("[REST] Error fetching progress:", error);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+export const getRecentProgress = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Find the most recently watched lecture that is NOT completed
+    const recentProgress = await UserProgress.findOne({ 
+      user: userId, 
+      isCompleted: false 
+    })
+    .sort({ updatedAt: -1 })
+    .populate('course', 'title thumbnail')
+    .populate('lecture', 'title videoUrl duration');
+
+    if (!recentProgress) {
+      return res.status(200).json({ success: true, data: null });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: recentProgress
+    });
+  } catch (error) {
+    console.error("[REST] Error fetching recent progress:", error);
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 };

@@ -36,6 +36,22 @@ const ebookSchema = new mongoose.Schema({
     default: 0
   },
 
+  // ================= STATS =================
+  views: {
+    type: Number,
+    default: 0
+  },
+
+  rating: {
+    type: Number,
+    default: 0
+  },
+
+  totalReviews: {
+    type: Number,
+    default: 0
+  },
+
   // ================= PDF =================
   pdf: {
     url: String, // Cloudinary

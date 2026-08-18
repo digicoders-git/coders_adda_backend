@@ -35,7 +35,7 @@ export const createNotification = async (req, res) => {
     await notification.save();
 
     if (!scheduledFor) {
-      await processNotification(notification);
+      processNotification(notification).catch(err => console.error("Create notification error:", err));
     }
 
     return res.status(201).json({ success: true, message: 'Notification created', data: notification });
@@ -317,7 +317,7 @@ export const sendCourseUpdateNotification = async (courseId, type, resourceTitle
     });
 
     await notification.save();
-    await processNotification(notification);
+    processNotification(notification).catch(err => console.error("Course auto-notif error:", err));
 
     console.log(`Auto-notification sent [${type}]: ${course.title} - ${resourceTitle}`);
   } catch (err) {
@@ -350,7 +350,7 @@ export const sendQuizNotification = async (quiz, type = 'added') => {
     });
 
     await notification.save();
-    await processNotification(notification);
+    processNotification(notification).catch(err => console.error("Quiz notif error:", err));
 
     console.log(`Quiz notification sent [${type}]: ${quiz.title}`);
   } catch (err) {
@@ -373,7 +373,7 @@ export const sendEbookNotification = async (ebook) => {
     });
 
     await notification.save();
-    await processNotification(notification);
+    processNotification(notification).catch(err => console.error("Ebook notif error:", err));
 
     console.log(`Ebook notification sent: ${ebook.title}`);
   } catch (err) {
@@ -500,7 +500,7 @@ export const sendCertificateNotification = async (userId, courseId, certificateU
     await notification.save();
 
     // 2. processNotification handles UserNotification (in-app bell) + FCM push
-    await processNotification(notification);
+    processNotification(notification).catch(err => console.error("Cert notif error:", err));
 
     // 3. Email with certificate attachment
     if (user.email) {
