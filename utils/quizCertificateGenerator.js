@@ -132,26 +132,9 @@ export const generateQuizCertificate = async (userId, quizId, template, extraDat
 
     console.log(`✅ Quiz Certificate generated locally: ${filePath}`);
 
-    // ── Upload to Cloudinary (so app can access it) ──
-    let certificateUrl;
-    try {
-      const cloudinary = (await import("../config/cloudinary.js")).default;
-      const cloudResult = await cloudinary.uploader.upload(filePath, {
-        folder:        "quiz-certificates/issued",
-        resource_type: "image",
-        public_id:     certId,
-      });
-      certificateUrl = cloudResult.secure_url;
-      console.log(`☁️  Quiz Certificate uploaded to Cloudinary: ${certificateUrl}`);
-
-      // Remove local file after successful Cloudinary upload
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-
-    } catch (cloudinaryErr) {
-      // Fallback: use local URL (works only on same network / localhost)
-      console.error("⚠️  Cloudinary upload failed, using local URL:", cloudinaryErr.message);
-      certificateUrl = `${process.env.BASE_URL || "http://localhost:3900"}/uploads/issued-quiz-certificates/${fileName}`;
-    }
+    // Use local URL directly (served via BASE_URL)
+    let certificateUrl = `${process.env.BASE_URL || "http://localhost:3900"}/uploads/issued-quiz-certificates/${fileName}`;
+    console.log(`✅ Quiz Certificate available at: ${certificateUrl}`);
 
     // Save to Database
     const certificate = await QuizCertificate.create({

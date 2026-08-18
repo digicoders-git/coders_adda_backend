@@ -1,8 +1,9 @@
 import CertificateTemplate from "../models/certificateTemplate.model.js";
 import Course from "../models/course.model.js";
-import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
 import mongoose from "mongoose";
+
+const BASE_URL = process.env.BASE_URL || "http://localhost:3900";
 
 /* ================= SAVE/UPDATE TEMPLATE ================= */
 export const saveCertificateTemplate = async (req, res) => {
@@ -31,25 +32,8 @@ export const saveCertificateTemplate = async (req, res) => {
     // Handle Image Upload
     let certificateImageUrl = template?.certificateImage;
     if (req.file) {
-      if (template?.certificateImage && template.certificateImage.includes('cloudinary.com')) {
-        try {
-          const parts = template.certificateImage.split('/');
-          const publicId = parts[parts.length - 1].split('.')[0];
-          await cloudinary.uploader.destroy(`certificates/templates/${publicId}`, { resource_type: "image" });
-        } catch (err) {
-          console.error("Cloudinary delete error:", err);
-        }
-      }
-      try {
-        const c = await cloudinary.uploader.upload(req.file.path, {
-          folder: "certificates/templates",
-          resource_type: "image",
-        });
-        certificateImageUrl = c.secure_url;
-      } catch (err) {
-        console.error("Cloudinary upload error:", err);
-        return res.status(500).json({ message: "Failed to upload image to Cloudinary", error: err.message });
-      }
+      const localUrl = `${BASE_URL}/uploads/certificates/templates/${req.file.filename}`;
+      certificateImageUrl = localUrl;
     }
 
     if (!certificateImageUrl) {

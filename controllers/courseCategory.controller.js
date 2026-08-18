@@ -1,5 +1,6 @@
 import CourseCategory from "../models/courseCategory.model.js";
-import cloudinary from "../config/cloudinary.js";
+
+const BASE_URL = process.env.BASE_URL || "http://localhost:3900";
 
 
 /* ================= CREATE ================= */
@@ -19,19 +20,11 @@ export const createCategory = async (req, res) => {
 
     // Handle Image upload
     if (req.file) {
-      const baseUrl = `${req.protocol}://${req.get("host")}`;
-      const localUrl = `${baseUrl}/uploads/${req.file.filename}`;
-
-      // Upload to Cloudinary
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "course_categories",
-        resource_type: "image"
-      });
-
+      const localUrl = `${BASE_URL}/uploads/${req.file.filename}`;
       image = {
-        url: result.secure_url,
+        url: localUrl,
         localUrl: localUrl,
-        public_id: result.public_id
+        public_id: req.file.filename
       };
     }
 
@@ -156,24 +149,11 @@ export const updateCategory = async (req, res) => {
 
     // Handle Image Update
     if (req.file) {
-      const baseUrl = `${req.protocol}://${req.get("host")}`;
-      const localUrl = `${baseUrl}/uploads/${req.file.filename}`;
-
-      // Remove old from Cloudinary
-      if (category.image?.public_id) {
-        await cloudinary.uploader.destroy(category.image.public_id).catch(e => console.error(e));
-      }
-
-      // Upload new
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "course_categories",
-        resource_type: "image"
-      });
-
+      const localUrl = `${BASE_URL}/uploads/${req.file.filename}`;
       category.image = {
-        url: result.secure_url,
+        url: localUrl,
         localUrl: localUrl,
-        public_id: result.public_id
+        public_id: req.file.filename
       };
     }
 

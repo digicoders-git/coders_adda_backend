@@ -77,16 +77,15 @@ app.use(
 // Body parsers
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-const isRender = process.env.RENDER === "true";
-
-const rootDir = isRender ? os.tmpdir() : __dirname;
-const uploadDir = path.resolve(rootDir, "uploads");
+const uploadDir = process.env.UPLOADS_DIR
+  ? path.resolve(process.env.UPLOADS_DIR)
+  : path.resolve(__dirname, "uploads");
 
 
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
-const subDirs = ["reviews", "blogs", "courses", "lectures", "users", "sliders", "certificates", "quiz-certificates", "instructors", "services", "ebooks/pdfs", "ebooks/images"];
+const subDirs = ["reviews", "blogs", "courses/thumbnails", "courses/videos", "lectures", "users/profile_pictures", "sliders", "certificates/templates", "certificates/issued", "quiz-certificates", "issued-quiz-certificates", "instructors/profile_pictures", "services", "ebooks/pdfs", "ebooks/images", "shorts", "job_applications/resumes"];
 subDirs.forEach(dir => {
   const fullPath = path.resolve(uploadDir, dir);
   if (!fs.existsSync(fullPath)) fs.mkdirSync(fullPath, { recursive: true });

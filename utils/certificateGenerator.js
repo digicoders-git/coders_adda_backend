@@ -138,22 +138,9 @@ export const generateCertificate = async (userId, courseId, template) => {
 
     console.log(`✅ Certificate File Generated locally at: ${filePath}`);
 
-    // Upload to Cloudinary
-    let certificateUrl;
-    try {
-      const cloudinaryResponse = await (await import("../config/cloudinary.js")).default.uploader.upload(filePath, {
-        folder: "certificates/issued",
-        resource_type: "image",
-      });
-      certificateUrl = cloudinaryResponse.secure_url;
-      // Remove local file
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-    } catch (uploadError) {
-      console.error("Cloudinary upload failed, falling back to local URL", uploadError);
-      certificateUrl = `${process.env.BASE_URL}/uploads/certificates/issued/${fileName}`;
-    }
+    // Use local URL directly (served via BASE_URL)
+    const certificateUrl = `${process.env.BASE_URL || "http://localhost:3900"}/uploads/certificates/issued/${fileName}`;
+    console.log(`✅ Certificate available at: ${certificateUrl}`);
 
     // Update Database
     pendingCert.certificateUrl = certificateUrl;

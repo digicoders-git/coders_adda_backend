@@ -1,8 +1,9 @@
 import Course from "../models/course.model.js";
 import mongoose from "mongoose";
-import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
 import CourseCurriculum from "../models/courseCurriculum.model.js";
+
+const BASE_URL = process.env.BASE_URL || "http://localhost:3900";
 import Lecture from "../models/lecture.model.js";
 import CourseCategory from "../models/courseCategory.model.js";
 import Instructor from "../models/instructor.model.js";
@@ -39,18 +40,11 @@ export const createCourse = async (req, res) => {
     let thumbnailData = { url: "", localUrl: "", public_id: "" };
     const thumbnailFile = req.files?.thumbnail?.[0] || req.files?.image?.[0];
     if (thumbnailFile) {
-      const baseUrl = `${req.protocol}://${req.get("host")}`;
-      const localUrl = `${baseUrl}/uploads/courses/thumbnails/${thumbnailFile.filename}`;
-      
-      const result = await cloudinary.uploader.upload(thumbnailFile.path, {
-        folder: "courses/thumbnails",
-        resource_type: "image"
-      });
-
+      const localUrl = `${BASE_URL}/uploads/courses/thumbnails/${thumbnailFile.filename}`;
       thumbnailData = {
-        url: result.secure_url,
+        url: localUrl,
         localUrl: localUrl,
-        public_id: result.public_id
+        public_id: thumbnailFile.filename
       };
     }
 
@@ -58,18 +52,11 @@ export const createCourse = async (req, res) => {
     let videoData = { url: "", localUrl: "", public_id: "" };
     const videoFile = req.files?.promoVideo?.[0] || req.files?.video?.[0];
     if (videoFile) {
-      const baseUrl = `${req.protocol}://${req.get("host")}`;
-      const localUrl = `${baseUrl}/uploads/courses/videos/${videoFile.filename}`;
-
-      const result = await cloudinary.uploader.upload(videoFile.path, {
-        folder: "courses/videos",
-        resource_type: "video"
-      });
-
+      const localUrl = `${BASE_URL}/uploads/courses/videos/${videoFile.filename}`;
       videoData = {
-        url: result.secure_url,
+        url: localUrl,
         localUrl: localUrl,
-        public_id: result.public_id
+        public_id: videoFile.filename
       };
     }
 
@@ -457,40 +444,22 @@ export const updateCourse = async (req, res) => {
     // Update Thumbnail
     const thumbnailFile = req.files?.thumbnail?.[0] || req.files?.image?.[0];
     if (thumbnailFile) {
-      // Remove old from Cloudinary
-      if (course.thumbnail?.public_id) {
-        await cloudinary.uploader.destroy(course.thumbnail.public_id, { resource_type: "image" }).catch(e => console.error("Cloudinary delete error:", e));
-      }
-
-      const result = await cloudinary.uploader.upload(thumbnailFile.path, {
-        folder: "courses/thumbnails",
-        resource_type: "image"
-      });
-
+      const localUrl = `${BASE_URL}/uploads/courses/thumbnails/${thumbnailFile.filename}`;
       course.thumbnail = {
-        url: result.secure_url,
-        localUrl: `${baseUrl}/uploads/courses/thumbnails/${thumbnailFile.filename}`,
-        public_id: result.public_id
+        url: localUrl,
+        localUrl: localUrl,
+        public_id: thumbnailFile.filename
       };
     }
 
     // Update Promo Video
     const videoFile = req.files?.promoVideo?.[0] || req.files?.video?.[0];
     if (videoFile) {
-      // Remove old from Cloudinary
-      if (course.promoVideo?.public_id) {
-        await cloudinary.uploader.destroy(course.promoVideo.public_id, { resource_type: "video" }).catch(e => console.error("Cloudinary delete error:", e));
-      }
-
-      const result = await cloudinary.uploader.upload(videoFile.path, {
-        folder: "courses/videos",
-        resource_type: "video"
-      });
-
+      const localUrl = `${BASE_URL}/uploads/courses/videos/${videoFile.filename}`;
       course.promoVideo = {
-        url: result.secure_url,
-        localUrl: `${baseUrl}/uploads/courses/videos/${videoFile.filename}`,
-        public_id: result.public_id
+        url: localUrl,
+        localUrl: localUrl,
+        public_id: videoFile.filename
       };
     }
 

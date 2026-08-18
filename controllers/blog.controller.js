@@ -1,8 +1,8 @@
 import Blog from "../models/blog.model.js";
 import fs from "fs";
 import path from "path";
-import cloudinary from "../config/cloudinary.js";
 
+const BASE_URL = process.env.BASE_URL || "http://localhost:3900";
 
 /* ================= CREATE ================= */
 export const createBlog = async (req, res) => {
@@ -11,22 +11,13 @@ export const createBlog = async (req, res) => {
 
     let image = {};
     if (req.file) {
-      const baseUrl = `${req.protocol}://${req.get("host")}`;
-      const localUrl = `${baseUrl}/uploads/blogs/${req.file.filename}`;
-
-      // Upload to Cloudinary
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "blogs",
-        resource_type: "image"
-      });
-
+      const localUrl = `${BASE_URL}/uploads/blogs/${req.file.filename}`;
       image = {
-        url: result.secure_url,
+        url: localUrl,
         localUrl: localUrl,
-        public_id: result.public_id
+        public_id: req.file.filename
       };
     }
-
 
     const blog = await Blog.create({
       title,
@@ -123,29 +114,19 @@ export const updateBlog = async (req, res) => {
     };
 
     if (req.file) {
-      const baseUrl = `${req.protocol}://${req.get("host")}`;
-      const localUrl = `${baseUrl}/uploads/blogs/${req.file.filename}`;
-
-      // Delete old from Cloudinary
+      // Delete old local file if exists
       if (blog.image?.public_id) {
-        await cloudinary.uploader.destroy(blog.image.public_id).catch(e => console.error(e));
+        const oldPath = path.resolve("uploads/blogs", blog.image.public_id);
+        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
       }
 
-      // Upload new
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "blogs",
-        resource_type: "image"
-      });
-
+      const localUrl = `${BASE_URL}/uploads/blogs/${req.file.filename}`;
       updateData.image = {
-        url: result.secure_url,
+        url: localUrl,
         localUrl: localUrl,
-        public_id: result.public_id
+        public_id: req.file.filename
       };
-
-      // We do NOT delete local file here because the user wants dual storage
     }
-
 
     blog = await Blog.findByIdAndUpdate(req.params.id, updateData, { new: true });
 

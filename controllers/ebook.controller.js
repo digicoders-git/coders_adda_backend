@@ -1,7 +1,8 @@
 import Ebook from "../models/ebook.model.js";
-import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
 import { sendEbookNotification } from "./notification.controller.js";
+
+const BASE_URL = process.env.BASE_URL || "http://localhost:3900";
 
 /* ================= CREATE EBOOK ================= */
 export const createEbook = async (req, res) => {
@@ -21,26 +22,18 @@ export const createEbook = async (req, res) => {
       return res.status(400).json({ message: "Required fields missing" });
     }
 
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const baseUrl = BASE_URL;
 
     // Upload PDF
     let pdfData = {};
     if (req.files && req.files.pdf) {
-      const result = await cloudinary.uploader.upload(req.files.pdf[0].path, {
-        folder: "ebooks/pdfs",
-        resource_type: "auto",
-        access_mode: "public"
-      });
-      
       const localUrl = `${baseUrl}/uploads/ebooks/pdfs/${req.files.pdf[0].filename}`;
-      
       pdfData = {
-        url: result.secure_url,
+        url: localUrl,
         localUrl: localUrl,
-        public_id: result.public_id,
+        public_id: req.files.pdf[0].filename,
         fileSize: fileSize
       };
-      // fs.unlinkSync(req.files.pdf[0].path); // STOP UNLINKING
     } else {
       return res.status(400).json({ message: "PDF file is required" });
     }
@@ -48,19 +41,12 @@ export const createEbook = async (req, res) => {
     // Upload Image
     let imageData = {};
     if (req.files && req.files.image) {
-      const img = await cloudinary.uploader.upload(req.files.image[0].path, {
-        folder: "ebooks/images",
-        resource_type: "image"
-      });
-      
       const localUrl = `${baseUrl}/uploads/ebooks/images/${req.files.image[0].filename}`;
-      
       imageData = { 
-        url: img.secure_url, 
+        url: localUrl, 
         localUrl: localUrl,
-        public_id: img.public_id 
+        public_id: req.files.image[0].filename
       };
-      // fs.unlinkSync(req.files.image[0].path); // STOP UNLINKING
     }
 
 
@@ -178,50 +164,27 @@ export const updateEbook = async (req, res) => {
     if (price !== undefined) ebook.price = priceType === "free" ? 0 : Math.abs(Number(price));
     if (isActive !== undefined) ebook.isActive = isActive;
 
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const baseUrl = BASE_URL;
 
     // Update PDF
     if (req.files && req.files.pdf) {
-      if (ebook.pdf?.public_id) {
-        await cloudinary.uploader.destroy(ebook.pdf.public_id).catch(e => console.error("Cloudinary delete error:", e));
-      }
-
-      const p = await cloudinary.uploader.upload(req.files.pdf[0].path, {
-        folder: "ebooks/pdfs",
-        resource_type: "auto",
-        access_mode: "public"
-      });
-
       const localUrl = `${baseUrl}/uploads/ebooks/pdfs/${req.files.pdf[0].filename}`;
-
       ebook.pdf = {
-        url: p.secure_url,
+        url: localUrl,
         localUrl: localUrl,
-        public_id: p.public_id,
+        public_id: req.files.pdf[0].filename,
         fileSize: fileSize || ebook.pdf.fileSize
       };
-      // fs.unlinkSync(req.files.pdf[0].path);
     }
 
     // Update Image
     if (req.files && req.files.image) {
-      if (ebook.image?.public_id) {
-        await cloudinary.uploader.destroy(ebook.image.public_id, { resource_type: "image" }).catch(e => console.error("Cloudinary delete error:", e));
-      }
-
-      const img = await cloudinary.uploader.upload(req.files.image[0].path, {
-        folder: "ebooks/images",
-        resource_type: "image"
-      });
-
       const localUrl = `${baseUrl}/uploads/ebooks/images/${req.files.image[0].filename}`;
-
       ebook.image = { 
-        url: img.secure_url, 
+        url: localUrl, 
         localUrl: localUrl,
-        public_id: img.public_id 
+        public_id: req.files.image[0].filename
       };
-      // fs.unlinkSync(req.files.image[0].path);
     }
 
 
@@ -246,12 +209,7 @@ export const deleteEbook = async (req, res) => {
     const ebook = await Ebook.findById(id);
     if (!ebook) return res.status(404).json({ message: "E-Book not found" });
 
-    if (ebook.pdf?.public_id) {
-      await cloudinary.uploader.destroy(ebook.pdf.public_id);
-    }
-    if (ebook.image?.public_id) {
-      await cloudinary.uploader.destroy(ebook.image.public_id, { resource_type: "image" });
-    }
+    // No Cloudinary to delete — local files are kept on disk
 
     await Ebook.findByIdAndDelete(id);
 

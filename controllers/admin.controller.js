@@ -1,7 +1,8 @@
 import generateToken from "../config/token.js"
 import Admin from "../models/admin.model.js"
 import bcrypt from 'bcryptjs'
-import cloudinary from '../config/cloudinary.js'
+
+const BASE_URL = process.env.BASE_URL || "http://localhost:3900";
 
 
 export const create = async (req, res) => {
@@ -17,10 +18,7 @@ export const create = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10)
     let profilePhotoUrl = "";
     if (req.file) {
-      const img = await cloudinary.uploader.upload(req.file.path, {
-        folder: "admin_profiles"
-      })
-      profilePhotoUrl = img.secure_url;
+      profilePhotoUrl = `${BASE_URL}/uploads/users/profile_pictures/${req.file.filename}`;
     }
 
     const admin = await Admin.create({
@@ -111,10 +109,7 @@ export const updateAdmin = async (req, res) => {
 
     // Update profile photo if provided
     if (req.file) {
-      const img = await cloudinary.uploader.upload(req.file.path, {
-        folder: "admin_profiles"
-      });
-      admin.profilePhoto = img.secure_url;
+      admin.profilePhoto = `${BASE_URL}/uploads/users/profile_pictures/${req.file.filename}`;
     }
 
     await admin.save();

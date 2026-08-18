@@ -1,6 +1,7 @@
 import User from "../models/user.model.js";
-import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
+
+const BASE_URL = process.env.BASE_URL || "http://localhost:3900";
 import Subscription from "../models/subscription.model.js";
 import SubscriptionPurchase from "../models/subscriptionPurchase.model.js";
 import Lecture from "../models/lecture.model.js";
@@ -321,17 +322,11 @@ export const updateUser = async (req, res) => {
     if (purchaseJobs !== undefined) user.purchaseJobs = purchaseJobs;
 
     if (req.file) {
-      if (user.profilePicture?.public_id) {
-        await cloudinary.uploader.destroy(user.profilePicture.public_id);
-      }
-      const uploadResult = await cloudinary.uploader.upload(req.file.path, {
-        folder: "users/profile_pictures"
-      });
+      const localUrl = `${BASE_URL}/uploads/users/profile_pictures/${req.file.filename}`;
       user.profilePicture = {
-        url: uploadResult.secure_url,
-        public_id: uploadResult.public_id
+        url: localUrl,
+        public_id: req.file.filename
       };
-      fs.unlinkSync(req.file.path);
     }
 
     await user.save();
@@ -360,9 +355,7 @@ export const deleteUser = async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    if (user.profilePicture?.public_id) {
-      await cloudinary.uploader.destroy(user.profilePicture.public_id);
-    }
+    // Local file cleanup on delete is optional — skip Cloudinary
 
     await User.findByIdAndDelete(id);
 
