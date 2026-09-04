@@ -20,7 +20,10 @@ export const createShort = async (req, res) => {
       });
     }
 
-    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
+    let baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
+    if (baseUrl.includes("onrender.com")) {
+      baseUrl = "https://api.codersadda.com";
+    }
     const videoUrl = `${baseUrl}/uploads/shorts/${req.file.filename}`;
 
     const short = await Short.create({
@@ -75,7 +78,10 @@ export const updateShort = async (req, res) => {
         }
       }
 
-      const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
+      let baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
+      if (baseUrl.includes("onrender.com")) {
+        baseUrl = "https://api.codersadda.com";
+      }
       const videoUrl = `${baseUrl}/uploads/shorts/${req.file.filename}`;
 
       short.video = {
@@ -163,13 +169,21 @@ export const getAllShorts = async (req, res) => {
       .skip(skip)
       .limit(limit);
 
+    const sanitizedShorts = shorts.map(s => {
+      const doc = s.toObject ? s.toObject() : { ...s };
+      if (doc.video?.url && doc.video.url.includes("onrender.com")) {
+        doc.video.url = doc.video.url.replace("coders-adda-backend.onrender.com", "api.codersadda.com");
+      }
+      return doc;
+    });
+
     res.json({
       success: true,
       total,
       page,
       limit,
       totalPages: Math.ceil(total / limit),
-      data: shorts
+      data: sanitizedShorts
     });
   } catch (error) {
     res.status(500).json({
@@ -184,7 +198,14 @@ export const getAllShorts = async (req, res) => {
 export const getActiveShorts = async (req, res) => {
   try {
     const shorts = await Short.find({ isActive: true }).sort({ createdAt: -1 });
-    res.json({ success: true, data: shorts });
+    const sanitizedShorts = shorts.map(s => {
+      const doc = s.toObject ? s.toObject() : { ...s };
+      if (doc.video?.url && doc.video.url.includes("onrender.com")) {
+        doc.video.url = doc.video.url.replace("coders-adda-backend.onrender.com", "api.codersadda.com");
+      }
+      return doc;
+    });
+    res.json({ success: true, data: sanitizedShorts });
   } catch (error) {
     res.status(500).json({
       message: "Server error",
