@@ -85,7 +85,7 @@ const uploadDir = process.env.UPLOADS_DIR
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
-const subDirs = ["reviews", "blogs", "courses/thumbnails", "courses/videos", "lectures", "users/profile_pictures", "sliders", "certificates/templates", "certificates/issued", "quiz-certificates", "issued-quiz-certificates", "instructors/profile_pictures", "services", "ebooks/pdfs", "ebooks/images", "shorts", "job_applications/resumes"];
+const subDirs = ["reviews", "blogs", "courses/thumbnails", "courses/videos", "lectures", "users/profile_pictures", "sliders", "certificates/templates", "certificates/issued", "quiz-certificates", "issued-quiz-certificates", "instructors/profile_pictures", "services", "ebooks/pdfs", "ebooks/images", "shorts", "job_applications/resumes", "notifications"];
 subDirs.forEach(dir => {
   const fullPath = path.resolve(uploadDir, dir);
   if (!fs.existsSync(fullPath)) fs.mkdirSync(fullPath, { recursive: true });

@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import CourseCurriculum from "../models/courseCurriculum.model.js";
 import Lecture from "../models/lecture.model.js";
 import { generateToken } from "../utils/jwt.js";
-import cloudinary from "../config/cloudinary.js";
+
 import Payment from "../models/payment.model.js";
 import { purchasableItemsMap } from "../services/purchasableItemsMap.js";
 import QuizCertificate from "../models/quizCertificate.model.js";
@@ -582,21 +582,14 @@ export const updateUserProfile = async (req, res) => {
 
     // 🖼️ Profile Picture Upload
     if (req.file) {
-      // Purani image delete (optional but recommended)
       if (user.profilePicture && user.profilePicture.public_id) {
-        /* await cloudinary.uploader.destroy(user.profilePicture.public_id); */
         const oldFilePath = path.join("uploads/users/profile_pictures", user.profilePicture.public_id);
         if (fs.existsSync(oldFilePath)) {
           fs.unlinkSync(oldFilePath);
         }
       }
 
-      /* const uploadResult = await cloudinary.uploader.upload(req.file.path, {
-        folder: "users/profile_pictures",
-        crop: "fill"
-      }); */
-
-      const baseUrl = `${req.protocol}://${req.get("host")}`;
+      const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
       const imageUrl = `${baseUrl}/uploads/users/profile_pictures/${req.file.filename}`;
 
       user.profilePicture = {

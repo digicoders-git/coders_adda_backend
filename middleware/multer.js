@@ -8,10 +8,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const rootDir = process.env.UPLOADS_DIR
+    let dest = process.env.UPLOADS_DIR
       ? path.resolve(process.env.UPLOADS_DIR)
-      : path.resolve(__dirname, "..");
-    let dest = path.resolve(rootDir, "uploads");
+      : path.resolve(__dirname, "..", "uploads");
 
 
     // Logic to separate folders based on fieldname or route

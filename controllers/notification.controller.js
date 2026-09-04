@@ -1,7 +1,7 @@
 import { Notification, UserNotification, NotificationSetting, InstructorNotification } from '../models/notification.model.js';
 import User from '../models/user.model.js';
 import Instructor from '../models/instructor.model.js';
-import cloudinary from '../config/cloudinary.js';
+import fs from 'fs';
 import admin from '../config/firebase.js';
 import Course from '../models/course.model.js';
 import Payment from '../models/payment.model.js';
@@ -15,10 +15,8 @@ export const createNotification = async (req, res) => {
 
     let imageUrl = req.body.image || '';
     if (req.file) {
-      const uploadResult = await cloudinary.uploader.upload(req.file.path, { folder: 'notifications' });
-      if (uploadResult && uploadResult.secure_url) {
-        imageUrl = uploadResult.secure_url;
-      }
+      const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
+      imageUrl = `${baseUrl}/uploads/notifications/${req.file.filename}`;
     }
 
     let parsedTargetUsers = targetUsers;

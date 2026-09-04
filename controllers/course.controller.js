@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import fs from "fs";
 import CourseCurriculum from "../models/courseCurriculum.model.js";
 
-const BASE_URL = process.env.BASE_URL || "http://localhost:3900";
+
 import Lecture from "../models/lecture.model.js";
 import CourseCategory from "../models/courseCategory.model.js";
 import Instructor from "../models/instructor.model.js";
@@ -40,7 +40,8 @@ export const createCourse = async (req, res) => {
     let thumbnailData = { url: "", localUrl: "", public_id: "" };
     const thumbnailFile = req.files?.thumbnail?.[0] || req.files?.image?.[0];
     if (thumbnailFile) {
-      const localUrl = `${BASE_URL}/uploads/courses/thumbnails/${thumbnailFile.filename}`;
+      const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
+      const localUrl = `${baseUrl}/uploads/courses/thumbnails/${thumbnailFile.filename}`;
       thumbnailData = {
         url: localUrl,
         localUrl: localUrl,
@@ -52,7 +53,8 @@ export const createCourse = async (req, res) => {
     let videoData = { url: "", localUrl: "", public_id: "" };
     const videoFile = req.files?.promoVideo?.[0] || req.files?.video?.[0];
     if (videoFile) {
-      const localUrl = `${BASE_URL}/uploads/courses/videos/${videoFile.filename}`;
+      const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
+      const localUrl = `${baseUrl}/uploads/courses/videos/${videoFile.filename}`;
       videoData = {
         url: localUrl,
         localUrl: localUrl,
@@ -439,12 +441,12 @@ export const updateCourse = async (req, res) => {
     if (faqs !== undefined) course.faqs = safeJsonParse(faqs, course.faqs);
     if (reviews !== undefined) course.reviews = safeJsonParse(reviews, course.reviews);
 
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
 
     // Update Thumbnail
     const thumbnailFile = req.files?.thumbnail?.[0] || req.files?.image?.[0];
     if (thumbnailFile) {
-      const localUrl = `${BASE_URL}/uploads/courses/thumbnails/${thumbnailFile.filename}`;
+      const localUrl = `${baseUrl}/uploads/courses/thumbnails/${thumbnailFile.filename}`;
       course.thumbnail = {
         url: localUrl,
         localUrl: localUrl,
@@ -455,7 +457,7 @@ export const updateCourse = async (req, res) => {
     // Update Promo Video
     const videoFile = req.files?.promoVideo?.[0] || req.files?.video?.[0];
     if (videoFile) {
-      const localUrl = `${BASE_URL}/uploads/courses/videos/${videoFile.filename}`;
+      const localUrl = `${baseUrl}/uploads/courses/videos/${videoFile.filename}`;
       course.promoVideo = {
         url: localUrl,
         localUrl: localUrl,

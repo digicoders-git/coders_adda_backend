@@ -1,36 +1,11 @@
 import Lecture from "../models/lecture.model.js";
-import cloudinary from "../config/cloudinary.js";
-import fs from "fs";
-import UserProgress from "../models/UserProgress.js";
-import { sendCourseUpdateNotification } from "./notification.controller.js";
-import LecturePurchase from "../models/lecturePurchase.model.js";
-
-const uploadToCloudinary = (filePath, options) => {
-  return new Promise((resolve, reject) => {
-    cloudinary.uploader.upload_large(filePath, options, (error, result) => {
-      if (error) reject(error);
-      else resolve(result);
-    });
-  });
-};
-
-const processUpload = async (fileObj, options, fallbackFolder, baseUrl) => {
-  try {
-    const result = await uploadToCloudinary(fileObj.path, options);
-    return {
-      url: result.secure_url,
-      localUrl: result.secure_url,
-      public_id: result.public_id
-    };
-  } catch (err) {
-    console.error(`Cloudinary upload failed for ${fileObj.fieldname}:`, err.message || err);
-    const localPath = `/uploads/${fallbackFolder}/${fileObj.filename}`;
-    return {
-      url: baseUrl + localPath,
-      localUrl: baseUrl + localPath,
-      public_id: ""
-    };
-  }
+const processUploadLocal = (fileObj, folder, baseUrl) => {
+  const localPath = `/uploads/${folder}/${fileObj.filename}`;
+  return {
+    url: baseUrl + localPath,
+    localUrl: baseUrl + localPath,
+    public_id: fileObj.path
+  };
 };
 
 /* ================= CREATE LECTURE ================= */
@@ -62,30 +37,18 @@ export const createLecture = async (req, res) => {
     let thumbData = { url: "", public_id: "" };
     let resourceData = { url: "", public_id: "" };
 
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
 
     if (req.files?.video?.[0]) {
-      videoData = await processUpload(req.files.video[0], {
-        folder: "lectures/videos",
-        resource_type: "video",
-        chunk_size: 6000000
-      }, "lectures/videos", baseUrl);
+      videoData = processUploadLocal(req.files.video[0], "lectures/videos", baseUrl);
     }
 
     if (req.files?.thumbnail?.[0]) {
-      thumbData = await processUpload(req.files.thumbnail[0], {
-        folder: "lectures/thumbnails",
-        resource_type: "image",
-        chunk_size: 6000000
-      }, "lectures/thumbnails", baseUrl);
+      thumbData = processUploadLocal(req.files.thumbnail[0], "lectures/thumbnails", baseUrl);
     }
 
     if (req.files?.resource?.[0]) {
-      resourceData = await processUpload(req.files.resource[0], {
-        folder: "lectures/resources",
-        resource_type: "raw",
-        chunk_size: 6000000
-      }, "lectures/resources", baseUrl);
+      resourceData = processUploadLocal(req.files.resource[0], "lectures/resources", baseUrl);
     }
 
     const lecture = await Lecture.create({
@@ -347,61 +310,44 @@ export const updateLecture = async (req, res) => {
     if (scheduledAt !== undefined) lecture.scheduledAt = scheduledAt;
     if (quizId !== undefined) lecture.quizId = quizId || null;
 
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
+
+    // Helper to safely delete local file
+    const safeDeleteLocal = (publicId) => {
+      if (publicId && fs.existsSync(publicId)) {
+        try { fs.unlinkSync(publicId); } catch(e) { console.error("Local delete error:", e); }
+      }
+    };
 
     // Update video
     if (req.files?.video?.[0]) {
-      if (lecture.video?.public_id) {
-        await cloudinary.uploader.destroy(lecture.video.public_id, { resource_type: "video" }).catch(e => console.error(e));
-      }
-      lecture.video = await processUpload(req.files.video[0], {
-        folder: "lectures/videos",
-        resource_type: "video",
-        chunk_size: 6000000
-      }, "lectures/videos", baseUrl);
+      safeDeleteLocal(lecture.video?.public_id);
+      lecture.video = processUploadLocal(req.files.video[0], "lectures/videos", baseUrl);
       lecture.markModified('video');
     } else if (removeVideo === "true") {
-      if (lecture.video?.public_id) {
-        await cloudinary.uploader.destroy(lecture.video.public_id, { resource_type: "video" }).catch(e => console.error(e));
-      }
+      safeDeleteLocal(lecture.video?.public_id);
       lecture.video = null;
       lecture.markModified('video');
     }
 
     // Update thumbnail
     if (req.files?.thumbnail?.[0]) {
-      if (lecture.thumbnail?.public_id) {
-        await cloudinary.uploader.destroy(lecture.thumbnail.public_id).catch(e => console.error(e));
-      }
-      lecture.thumbnail = await processUpload(req.files.thumbnail[0], {
-        folder: "lectures/thumbnails",
-        resource_type: "image",
-        chunk_size: 6000000
-      }, "lectures/thumbnails", baseUrl);
+      safeDeleteLocal(lecture.thumbnail?.public_id);
+      lecture.thumbnail = processUploadLocal(req.files.thumbnail[0], "lectures/thumbnails", baseUrl);
       lecture.markModified('thumbnail');
     } else if (removeThumbnail === "true") {
-      if (lecture.thumbnail?.public_id) {
-        await cloudinary.uploader.destroy(lecture.thumbnail.public_id).catch(e => console.error(e));
-      }
+      safeDeleteLocal(lecture.thumbnail?.public_id);
       lecture.thumbnail = null;
       lecture.markModified('thumbnail');
     }
 
     // Update resource
     if (req.files?.resource?.[0]) {
-      if (lecture.resource?.public_id) {
-        await cloudinary.uploader.destroy(lecture.resource.public_id, { resource_type: "raw" }).catch(e => console.error(e));
-      }
-      lecture.resource = await processUpload(req.files.resource[0], {
-        folder: "lectures/resources",
-        resource_type: "raw",
-        chunk_size: 6000000
-      }, "lectures/resources", baseUrl);
+      safeDeleteLocal(lecture.resource?.public_id);
+      lecture.resource = processUploadLocal(req.files.resource[0], "lectures/resources", baseUrl);
       lecture.markModified('resource');
     } else if (removeResource === "true") {
-      if (lecture.resource?.public_id) {
-        await cloudinary.uploader.destroy(lecture.resource.public_id, { resource_type: "raw" }).catch(e => console.error(e));
-      }
+      safeDeleteLocal(lecture.resource?.public_id);
       lecture.resource = null;
       lecture.markModified('resource');
     }
@@ -428,15 +374,16 @@ export const deleteLecture = async (req, res) => {
     const lecture = await Lecture.findById(id);
     if (!lecture) return res.status(404).json({ message: "Lecture not found" });
 
-    /* if (lecture.video?.public_id) {
-      await cloudinary.uploader.destroy(lecture.video.public_id, { resource_type: "video" });
-    }
-    if (lecture.thumbnail?.public_id) {
-      await cloudinary.uploader.destroy(lecture.thumbnail.public_id);
-    }
-    if (lecture.resource?.public_id) {
-      await cloudinary.uploader.destroy(lecture.resource.public_id, { resource_type: "raw" });
-    } */
+    // Helper to safely delete local file
+    const safeDeleteLocal = (publicId) => {
+      if (publicId && fs.existsSync(publicId)) {
+        try { fs.unlinkSync(publicId); } catch(e) { console.error("Local delete error:", e); }
+      }
+    };
+
+    if (lecture.video?.public_id) safeDeleteLocal(lecture.video.public_id);
+    if (lecture.thumbnail?.public_id) safeDeleteLocal(lecture.thumbnail.public_id);
+    if (lecture.resource?.public_id) safeDeleteLocal(lecture.resource.public_id);
 
     await Lecture.findByIdAndDelete(id);
 

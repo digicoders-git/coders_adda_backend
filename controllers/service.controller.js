@@ -1,7 +1,7 @@
 import Service from "../models/service.model.js";
 import fs from "fs";
 import path from "path";
-import cloudinary from "../config/cloudinary.js";
+import cloudinary from "../config/cloudinary.js"; // removed
 
 /* ================= CREATE SERVICE ================= */
 export const createService = async (req, res) => {
@@ -10,27 +10,13 @@ export const createService = async (req, res) => {
 
     let icon = {};
     if (req.file) {
-      const baseUrl = `${req.protocol}://${req.get("host")}`;
+      const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
       const localUrl = `${baseUrl}/uploads/services/${req.file.filename}`;
 
-      let cloudinaryUrl = "";
-      let public_id = req.file.filename;
-
-      try {
-        const result = await cloudinary.uploader.upload(req.file.path, {
-          folder: "services",
-          resource_type: "image"
-        });
-        cloudinaryUrl = result.secure_url;
-        public_id = result.public_id;
-      } catch (err) {
-        console.error("Cloudinary upload fallback to local:", err);
-      }
-
       icon = {
-        url: cloudinaryUrl || localUrl,
+        url: localUrl,
         localUrl: localUrl,
-        public_id: public_id
+        public_id: req.file.path
       };
     }
 
@@ -125,27 +111,18 @@ export const updateService = async (req, res) => {
 
     let icon = service.icon;
     if (req.file) {
-      const baseUrl = `${req.protocol}://${req.get("host")}`;
+      const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
       const localUrl = `${baseUrl}/uploads/services/${req.file.filename}`;
 
-      let cloudinaryUrl = "";
-      let public_id = req.file.filename;
-
-      try {
-        const result = await cloudinary.uploader.upload(req.file.path, {
-          folder: "services",
-          resource_type: "image"
-        });
-        cloudinaryUrl = result.secure_url;
-        public_id = result.public_id;
-      } catch (err) {
-        console.error("Cloudinary upload fallback to local:", err);
+      // delete old locally
+      if (service.icon?.public_id && fs.existsSync(service.icon.public_id)) {
+        try { fs.unlinkSync(service.icon.public_id); } catch(e) {}
       }
 
       icon = {
-        url: cloudinaryUrl || localUrl,
+        url: localUrl,
         localUrl: localUrl,
-        public_id: public_id
+        public_id: req.file.path
       };
     }
 
@@ -181,6 +158,9 @@ export const deleteService = async (req, res) => {
       return res.status(404).json({ success: false, message: "Service not found" });
     }
 
+    if (service.icon?.public_id && fs.existsSync(service.icon.public_id)) {
+      try { fs.unlinkSync(service.icon.public_id); } catch(e) {}
+    }
     await Service.findByIdAndDelete(req.params.id);
 
     return res.status(200).json({

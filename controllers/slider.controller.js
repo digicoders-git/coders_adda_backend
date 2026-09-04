@@ -1,5 +1,5 @@
 import Slider from "../models/slider.model.js";
-import cloudinary from "../config/cloudinary.js";
+
 import fs from "fs";
 import path from "path";
 
@@ -13,7 +13,7 @@ export const createSlider = async (req, res) => {
     /* const uploadResult = await cloudinary.uploader.upload(req.file.path, {
       folder: "sliders"
     }); */
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
     const imageUrl = `${baseUrl}/uploads/sliders/${req.file.filename}`;
 
     const slider = await Slider.create({
@@ -57,7 +57,7 @@ export const updateSlider = async (req, res) => {
         folder: "sliders"
       }); */
 
-      const baseUrl = `${req.protocol}://${req.get("host")}`;
+      const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
       const imageUrl = `${baseUrl}/uploads/sliders/${req.file.filename}`;
 
       slider.image = {

@@ -9,7 +9,7 @@ export const createReview = async (req, res) => {
 
     let image = {};
     if (req.file) {
-      const baseUrl = `${req.protocol}://${req.get("host")}`;
+      const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
       image = {
         url: `${baseUrl}/uploads/reviews/${req.file.filename}`,
         public_id: req.file.filename
@@ -125,7 +125,7 @@ export const updateReview = async (req, res) => {
     };
 
     if (req.file) {
-      const baseUrl = `${req.protocol}://${req.get("host")}`;
+      const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
       updateData.image = {
         url: `${baseUrl}/uploads/reviews/${req.file.filename}`,
         public_id: req.file.filename

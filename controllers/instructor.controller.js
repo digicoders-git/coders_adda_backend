@@ -4,7 +4,7 @@ import generateToken from "../config/token.js";
 import Course from "../models/course.model.js";
 import Payment from "../models/payment.model.js";
 import mongoose from "mongoose";
-import cloudinary from "../config/cloudinary.js";
+import fs from "fs";
 
 /* ================= CREATE ================= */
 export const createInstructor = async (req, res) => {
@@ -26,25 +26,17 @@ export const createInstructor = async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
 
     let profilePictureData = { url: "", localUrl: "", public_id: "" };
 
     if (req.file) {
       const localUrl = `${baseUrl}/uploads/instructors/profile_pictures/${req.file.filename}`;
-      
-      // Upload to Cloudinary
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "instructors/profile_pictures",
-        resource_type: "image"
-      });
-
       profilePictureData = {
-        url: result.secure_url,
+        url: localUrl,
         localUrl: localUrl,
-        public_id: result.public_id
+        public_id: req.file.path
       };
-      // Note: We do NOT unlink the file so it stays on the local server as backup
     }
 
     const instructor = await Instructor.create({
@@ -155,26 +147,23 @@ export const updateInstructor = async (req, res) => {
     if (role !== undefined) instructor.role = role;
     if (isActive !== undefined) instructor.isActive = isActive;
     if (req.file) {
-      const baseUrl = `${req.protocol}://${req.get("host")}`;
+      const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
       const localUrl = `${baseUrl}/uploads/instructors/profile_pictures/${req.file.filename}`;
 
-      // Delete old image from Cloudinary if exists
-      if (instructor.profilePicture?.public_id) {
-        await cloudinary.uploader.destroy(instructor.profilePicture.public_id).catch(e => console.error("Cloudinary delete error:", e));
+      // Delete old image locally if exists
+      if (instructor.profilePicture?.public_id && fs.existsSync(instructor.profilePicture.public_id)) {
+        try {
+          fs.unlinkSync(instructor.profilePicture.public_id);
+        } catch (e) {
+          console.error("Local delete error:", e);
+        }
       }
 
-      // Upload new image to Cloudinary
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "instructors/profile_pictures",
-        resource_type: "image"
-      });
-
       instructor.profilePicture = {
-        url: result.secure_url,
+        url: localUrl,
         localUrl: localUrl,
-        public_id: result.public_id
+        public_id: req.file.path
       };
-      // Note: We do NOT unlink the file
     }
 
 
