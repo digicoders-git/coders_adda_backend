@@ -133,16 +133,16 @@ export const deleteShort = async (req, res) => {
 
     // delete video locally
     if (short.video?.public_id) {
-      await cloudinary.uploader.destroy(short.video.public_id, {
-        resource_type: "video"
-      });
-      // const filePath = path.join("uploads/shorts", short.video.public_id);
-      // if (fs.existsSync(filePath)) {
-      //   fs.unlinkSync(filePath);
-      // }
+      try {
+        await cloudinary.uploader.destroy(short.video.public_id, {
+          resource_type: "video"
+        });
+      } catch (cloudErr) {
+        console.error("Cloudinary delete error:", cloudErr);
+      }
     }
 
-    await short.deleteOne();
+    await Short.findByIdAndDelete(id);
 
     res.json({ success: true, message: "Short deleted successfully" });
   } catch (error) {

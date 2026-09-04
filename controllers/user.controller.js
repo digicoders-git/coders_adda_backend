@@ -14,12 +14,9 @@ import admin from "../config/firebase.js";
 
 
 // Fixed OTP
-
 const generateOTP = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit
+  return "123456"; // Fixed for testing as per requirement
 };
-// let FIXED_OTP = generateOTP();
-// let FIXED_OTP = "123456";
 
 
 // Request Mobile OTP
@@ -294,7 +291,6 @@ export const googleLogin = async (req, res) => {
         user.googleId = id;
         user.picture = picture;
         user.loginMethod = 'google';
-        await user.save();
       } else {
         return res.status(200).json({
           success: false,
@@ -313,7 +309,6 @@ export const googleLogin = async (req, res) => {
         user.name = name;
         user.picture = picture;
         user.loginMethod = 'google';
-        await user.save();
       } else {
         // Create new user with Google data
         user = new User({
@@ -325,47 +320,45 @@ export const googleLogin = async (req, res) => {
           loginMethod: 'google'
         });
 
-      // 🎁 Referral Logic
-      if (referralCode) {
-        const referrer = await User.findOne({ referralCode, isAmbassador: true });
-        if (!referrer) {
-          return res.status(400).json({ success: false, message: "Invalid Referral Code" });
-        }
-
-        user.referredBy = referrer._id;
-
-        // Get commission from config
-        const Config = mongoose.model("Config");
-        const commissionConfig = await Config.findOne({ key: "referral_commission" });
-        const commissionAmount = commissionConfig ? Number(commissionConfig.value) : 0;
-
-        referrer.walletBalance += commissionAmount;
-        referrer.referralCount = (referrer.referralCount || 0) + 1;
-        await referrer.save();
-
-        // 🔥 Update AmbassadorApplication collection (Separate collection as requested)
-        const AmbassadorApplication = mongoose.model("AmbassadorApplication");
-        await AmbassadorApplication.findOneAndUpdate(
-          { user: referrer._id },
-          { $inc: { referralCount: 1 } }
-        );
-
-        // 💰 Record Transaction in Payment history
-        await Payment.create({
-          user: referrer._id,
-          itemType: "referral_reward",
-          itemId: user._id, // the new user
-          amount: commissionAmount,
-          status: "success",
-          razorpay: {
-            status: "captured"
+        // 🎁 Referral Logic
+        if (referralCode) {
+          const referrer = await User.findOne({ referralCode, isAmbassador: true });
+          if (!referrer) {
+            return res.status(400).json({ success: false, message: "Invalid Referral Code" });
           }
-        });
-      }
 
-      await user.save();
+          user.referredBy = referrer._id;
+
+          // Get commission from config
+          const Config = mongoose.model("Config");
+          const commissionConfig = await Config.findOne({ key: "referral_commission" });
+          const commissionAmount = commissionConfig ? Number(commissionConfig.value) : 0;
+
+          referrer.walletBalance += commissionAmount;
+          referrer.referralCount = (referrer.referralCount || 0) + 1;
+          await referrer.save();
+
+          // 🔥 Update AmbassadorApplication collection
+          const AmbassadorApplication = mongoose.model("AmbassadorApplication");
+          await AmbassadorApplication.findOneAndUpdate(
+            { user: referrer._id },
+            { $inc: { referralCount: 1 } }
+          );
+
+          // 💰 Record Transaction in Payment history
+          await Payment.create({
+            user: referrer._id,
+            itemType: "referral_reward",
+            itemId: user._id, // the new user
+            amount: commissionAmount,
+            status: "success",
+            razorpay: {
+              status: "captured"
+            }
+          });
+        }
+      }
     }
-  }
 
     // Check if account is blocked
     if (user.isActive === false) {
@@ -376,26 +369,17 @@ export const googleLogin = async (req, res) => {
       });
     }
 
-    // Generate JWT token
-    const token = generateToken(user._id);
+    // Generate Fixed OTP for Google login
+    let genOTP = generateOTP();
+    user.otp = genOTP;
+    await user.save();
 
-    // Success response
-    res.status(200).json({
+    // Return requireOtp so frontend can show OTP screen
+    return res.status(200).json({
       success: true,
-      message: "Google login successful",
-      token,
-      user: {
-        id: user._id,
-        mobile: user.mobile,
-        email: user.email,
-        name: user.name,
-        picture: user.picture,
-        loginMethod: user.loginMethod,
-        isAmbassador: user.isAmbassador,
-        referralCode: user.referralCode,
-        walletBalance: user.walletBalance,
-        referralCount: user.referralCount || 0
-      }
+      requireOtp: true,
+      mobile: user.mobile,
+      message: `OTP sent successfully. Use ${genOTP}`
     });
 
   } catch (error) {

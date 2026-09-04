@@ -1,4 +1,4 @@
-import { createCanvas, loadImage, registerFont } from "canvas";
+// canvas is loaded lazily to avoid startup crash when native binary is missing (e.g. Windows without GTK)
 import QuizCertificate from "../models/quizCertificate.model.js";
 import User from "../models/user.model.js";
 import Quiz from "../models/quiz.model.js";
@@ -6,33 +6,33 @@ import fs from "fs";
 import path from "path";
 import { sendEmail } from "./sendEmail.js";
 
-const fontDir = path.join(process.cwd(), "assets", "fonts");
-if (fs.existsSync(fontDir)) {
-  // Roboto
-  if (fs.existsSync(path.join(fontDir, "Roboto", "Roboto-Regular.ttf"))) {
-    registerFont(path.join(fontDir, "Roboto", "Roboto-Regular.ttf"), { family: "roboto" });
-  }
-  if (fs.existsSync(path.join(fontDir, "Roboto", "Roboto-Bold.ttf"))) {
-    registerFont(path.join(fontDir, "Roboto", "Roboto-Bold.ttf"), { family: "roboto", weight: "bold" });
-  }
-  if (fs.existsSync(path.join(fontDir, "Roboto", "Roboto-Italic.ttf"))) {
-    registerFont(path.join(fontDir, "Roboto", "Roboto-Italic.ttf"), { family: "roboto", style: "italic" });
-  }
-  
-  // Inter
-  if (fs.existsSync(path.join(fontDir, "Inter", "Inter_24pt-Regular.ttf"))) {
-    registerFont(path.join(fontDir, "Inter", "Inter_24pt-Regular.ttf"), { family: "inter" });
-  }
-  if (fs.existsSync(path.join(fontDir, "Inter", "Inter_24pt-Bold.ttf"))) {
-    registerFont(path.join(fontDir, "Inter", "Inter_24pt-Bold.ttf"), { family: "inter", weight: "bold" });
-  }
-  
-  // Montserrat
-  if (fs.existsSync(path.join(fontDir, "Montserrat", "Montserrat-Regular.ttf"))) {
-    registerFont(path.join(fontDir, "Montserrat", "Montserrat-Regular.ttf"), { family: "montserrat" });
-  }
-  if (fs.existsSync(path.join(fontDir, "Montserrat", "Montserrat-Bold.ttf"))) {
-    registerFont(path.join(fontDir, "Montserrat", "Montserrat-Bold.ttf"), { family: "montserrat", weight: "bold" });
+// Lazy canvas loader — registers fonts once on first successful load
+let _canvasLoaded = false;
+let createCanvas, loadImage, registerFont;
+async function loadCanvas() {
+  if (_canvasLoaded) return true;
+  try {
+    ({ createCanvas, loadImage, registerFont } = await import("canvas"));
+    // Register fonts after canvas is loaded
+    const fontDir = path.join(process.cwd(), "assets", "fonts");
+    if (fs.existsSync(fontDir) && registerFont) {
+      const tryFont = (file, opts) => {
+        const p = path.join(fontDir, file);
+        if (fs.existsSync(p)) registerFont(p, opts);
+      };
+      tryFont("Roboto/Roboto-Regular.ttf",     { family: "roboto" });
+      tryFont("Roboto/Roboto-Bold.ttf",         { family: "roboto", weight: "bold" });
+      tryFont("Roboto/Roboto-Italic.ttf",       { family: "roboto", style: "italic" });
+      tryFont("Inter/Inter_24pt-Regular.ttf",   { family: "inter" });
+      tryFont("Inter/Inter_24pt-Bold.ttf",      { family: "inter", weight: "bold" });
+      tryFont("Montserrat/Montserrat-Regular.ttf", { family: "montserrat" });
+      tryFont("Montserrat/Montserrat-Bold.ttf",    { family: "montserrat", weight: "bold" });
+    }
+    _canvasLoaded = true;
+    return true;
+  } catch (e) {
+    console.warn("⚠️  canvas module not available (missing GTK/Cairo on Windows). Certificate generation skipped.");
+    return false;
   }
 }
 
@@ -43,6 +43,13 @@ if (fs.existsSync(fontDir)) {
  * - Falls back to local URL only if Cloudinary fails
  */
 export const generateQuizCertificate = async (userId, quizId, template, extraData = {}) => {
+  // Load canvas lazily — returns null if not available on this machine
+  const canvasAvailable = await loadCanvas();
+  if (!canvasAvailable) {
+    console.warn("⚠️  Skipping quiz certificate generation: canvas not available.");
+    return null;
+  }
+
   try {
     // Check if already issued
     const existing = await QuizCertificate.findOne({ user: userId, quiz: quizId });

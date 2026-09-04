@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { createCanvas, loadImage } from "canvas";
+// canvas is loaded lazily to avoid startup crash when native binary is missing
 import Certificate from "../models/certificate.model.js";
 import User from "../models/user.model.js";
 import Course from "../models/course.model.js";
@@ -10,6 +10,13 @@ import Course from "../models/course.model.js";
  * Generates a certificate for a user based on stored template configuration using node-canvas.
  */
 export const generateCertificate = async (userId, courseId, template) => {
+  let createCanvas, loadImage;
+  try {
+    ({ createCanvas, loadImage } = await import("canvas"));
+  } catch (e) {
+    console.warn("⚠️  canvas module not available (missing GTK/Cairo). Certificate generation skipped.");
+    throw new Error("Canvas not available on this machine. Deploy to server for certificate generation.");
+  }
   try {
     let existing = await Certificate.findOne({ user: userId, course: courseId });
     
