@@ -59,6 +59,7 @@ import supportTicketRouter from './routes/supportTicket.routes.js';
 import progressRoute from './routes/progress.routes.js';
 import faqRoutes from './routes/faq.routes.js';
 import liveSessionRoutes from './routes/liveSession.routes.js';
+import webhookRoutes from './routes/webhook.routes.js';
 import http from "http";
 import { initSocket } from "./config/socket.js";
 
@@ -148,6 +149,7 @@ app.use('/support-ticket', supportTicketRouter)
 app.use('/progress', progressRoute)
 app.use('/faq', faqRoutes)
 app.use('/live-session', liveSessionRoutes)
+app.use('/webhooks', webhookRoutes)
 
 
 // 404 handler
