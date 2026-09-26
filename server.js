@@ -59,6 +59,8 @@ import supportTicketRouter from './routes/supportTicket.routes.js';
 import progressRoute from './routes/progress.routes.js';
 import faqRoutes from './routes/faq.routes.js';
 import liveSessionRoutes from './routes/liveSession.routes.js';
+import liveClassRoutes from './routes/liveClass.routes.js';
+import srsCallbackRoutes from './routes/srsCallback.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
 import http from "http";
 import { initSocket } from "./config/socket.js";
@@ -148,7 +150,9 @@ app.use('/services', serviceRoutes)
 app.use('/support-ticket', supportTicketRouter)
 app.use('/progress', progressRoute)
 app.use('/faq', faqRoutes)
-app.use('/live-session', liveSessionRoutes)
+app.use('/live-session', liveSessionRoutes)   // Legacy (kept for backward compat)
+app.use('/live-class', liveClassRoutes)        // New: SRS-based live class system
+app.use('/internal/srs', srsCallbackRoutes)   // Internal: SRS HTTP callbacks
 app.use('/webhooks', webhookRoutes)
 
 

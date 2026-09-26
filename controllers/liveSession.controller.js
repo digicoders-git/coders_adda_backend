@@ -49,15 +49,10 @@ export const getSessionById = async (req, res) => {
 };
 
 // POST /live-session/admin/create — admin create
+// Admin manually provides: playbackUrl, streamKey (optional), ingestEndpoint (optional)
 export const createSession = async (req, res) => {
   try {
-    const data = {
-      ...req.body,
-      playbackUrl: req.body.playbackUrl || process.env.IVS_PLAYBACK_URL || '',
-      streamKey: req.body.streamKey || process.env.IVS_STREAM_KEY || '',
-      ingestEndpoint: req.body.ingestEndpoint || process.env.IVS_INGEST_ENDPOINT || '',
-    };
-    const session = await LiveSession.create(data);
+    const session = await LiveSession.create(req.body);
     res.status(201).json(session);
   } catch (err) {
     res.status(500).json({ message: err.message });

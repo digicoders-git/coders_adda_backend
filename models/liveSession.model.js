@@ -9,12 +9,16 @@ const liveSessionSchema = new mongoose.Schema({
   scheduledAt: { type: Date, required: true },
   durationMinutes: { type: Number, default: 60 },
   status: { type: String, enum: ['scheduled', 'live', 'ended'], default: 'scheduled' },
-  playbackUrl: { type: String, default: '' },
-  streamKey: { type: String, default: '' },
-  ingestEndpoint: { type: String, default: '' },
-  streamId: { type: String, default: '' },
+
+  // Stream info — filled manually by admin (any platform: YouTube, Zoom, Agora, etc.)
+  playbackUrl: { type: String, default: '' },   // HLS / YouTube embed / Zoom link for students
+  streamKey: { type: String, default: '' },      // Optional: OBS stream key (any platform)
+  ingestEndpoint: { type: String, default: '' }, // Optional: RTMP ingest URL
+
+  // Recording
   recordingUrl: { type: String, default: '' },
   recordingStatus: { type: String, enum: ['pending', 'recording', 'ready', 'failed'], default: 'pending' },
+
   thumbnailUrl: { type: String, default: '' },
   viewerCount: { type: Number, default: 0 },
   isActive: { type: Boolean, default: true },
