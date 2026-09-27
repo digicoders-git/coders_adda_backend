@@ -33,7 +33,18 @@ const liveClassSchema = new mongoose.Schema(
       trim: true,
     },
 
+    topic: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+
     description: {
+      type: String,
+      default: '',
+    },
+
+    thumbnailUrl: {
       type: String,
       default: '',
     },

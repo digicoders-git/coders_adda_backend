@@ -42,7 +42,7 @@ export const getClassesByCourse = async (req, res) => {
     })
       .sort({ scheduledAt: -1 })
       .select(
-        'title description scheduledAt expectedDurationMinutes status appVisibility liveStartedAt liveEndedAt durationSeconds'
+        'title topic description thumbnailUrl scheduledAt expectedDurationMinutes status appVisibility liveStartedAt liveEndedAt durationSeconds'
       )
       .lean();
 
@@ -65,7 +65,7 @@ export const getUpcomingByCourse = async (req, res) => {
       status: 'SCHEDULED',
     })
       .sort({ scheduledAt: 1 })
-      .select('title description scheduledAt expectedDurationMinutes instructorId')
+      .select('title topic description thumbnailUrl scheduledAt expectedDurationMinutes instructorId')
       .populate('instructorId', 'fullName')
       .lean();
 

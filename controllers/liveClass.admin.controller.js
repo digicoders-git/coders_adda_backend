@@ -30,6 +30,7 @@ export const createLiveClass = async (req, res) => {
       courseId,
       instructorId,
       title,
+      topic,
       description,
       scheduledAt,
       expectedDurationMinutes,
@@ -51,6 +52,13 @@ export const createLiveClass = async (req, res) => {
     if (!course) return res.status(404).json({ success: false, message: 'Course not found' });
     if (!instructor) return res.status(404).json({ success: false, message: 'Instructor not found' });
 
+    // Handle thumbnail
+    let thumbnailUrl = req.body.thumbnailUrl || '';
+    if (req.file) {
+      const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
+      thumbnailUrl = `${baseUrl}/uploads/courses/thumbnails/${req.file.filename}`;
+    }
+
     // Generate stream credentials
     const { streamName, streamSecretEncrypted } = generateStreamCredentials();
 
@@ -58,9 +66,11 @@ export const createLiveClass = async (req, res) => {
       courseId,
       instructorId,
       title,
+      topic: topic || '',
       description: description || '',
+      thumbnailUrl: thumbnailUrl || '',
       scheduledAt: new Date(scheduledAt),
-      expectedDurationMinutes: expectedDurationMinutes || 60,
+      expectedDurationMinutes: Number(expectedDurationMinutes) || 60,
       streamName,
       streamSecretEncrypted,
       status: 'SCHEDULED',
@@ -151,6 +161,11 @@ export const updateLiveClass = async (req, res) => {
   try {
     const BLOCKED_FIELDS = ['status', 'appVisibility', 'streamName', 'streamSecretEncrypted', 'recordingStatus'];
     BLOCKED_FIELDS.forEach((f) => delete req.body[f]);
+
+    if (req.file) {
+      const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
+      req.body.thumbnailUrl = `${baseUrl}/uploads/courses/thumbnails/${req.file.filename}`;
+    }
 
     const doc = await LiveClass.findByIdAndUpdate(req.params.id, req.body, { new: true })
       .select('-streamSecretEncrypted')

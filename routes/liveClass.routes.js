@@ -13,6 +13,7 @@ import express from 'express';
 import verifyAdminToken from '../middleware/verifyAdminToken.js';
 import verifyInstructorToken from '../middleware/verifyInstructorToken.js';
 import userAuth from '../middleware/userAuth.js';
+import upload from '../middleware/multer.js';
 
 // Admin controllers
 import {
@@ -47,8 +48,8 @@ const router = express.Router();
 router.get('/admin/stats', verifyAdminToken, getLiveClassStats);
 router.get('/admin/all', verifyAdminToken, getAllLiveClasses);
 router.get('/admin/:id', verifyAdminToken, getLiveClassById);
-router.post('/admin', verifyAdminToken, createLiveClass);
-router.patch('/admin/:id', verifyAdminToken, updateLiveClass);
+router.post('/admin', verifyAdminToken, upload.single('thumbnail'), createLiveClass);
+router.patch('/admin/:id', verifyAdminToken, upload.single('thumbnail'), updateLiveClass);
 router.delete('/admin/:id', verifyAdminToken, deleteLiveClass);
 router.post('/admin/:id/show-on-app', verifyAdminToken, showOnApp);
 router.post('/admin/:id/hide-from-app', verifyAdminToken, hideFromApp);
