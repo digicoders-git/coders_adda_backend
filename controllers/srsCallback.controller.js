@@ -44,8 +44,8 @@ export const handleOnPublish = async (req, res) => {
       return res.status(200).send('1'); // Reject: unknown stream
     }
 
-    // Only allow streaming if class is in a valid pre-live state
-    const ALLOWED_STATUSES = ['SCHEDULED', 'LIVE_HIDDEN', 'LIVE'];
+    // Allow streaming if class is scheduled, live, hidden, or previously ended (reconnect/restart)
+    const ALLOWED_STATUSES = ['SCHEDULED', 'LIVE_HIDDEN', 'LIVE', 'ENDED'];
     if (!ALLOWED_STATUSES.includes(liveClass.status)) {
       console.warn(`[SRS on_publish] Class ${liveClass._id} in status ${liveClass.status} — REJECTING`);
       return res.status(200).send('1');
