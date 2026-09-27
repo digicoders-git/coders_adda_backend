@@ -56,8 +56,11 @@ router.post('/admin/:id/cancel', verifyAdminToken, cancelLiveClass);
 
 // ── Instructor Routes (verifyInstructorToken) ─────────────────────────────────
 router.get('/instructor/my-classes', verifyInstructorToken, getMyClasses);
+router.get('/instructor/classes', verifyInstructorToken, getMyClasses); // alias
 router.get('/instructor/:id/obs-config', verifyInstructorToken, getObsConfig);
+router.get('/instructor/classes/:id/obs', verifyInstructorToken, getObsConfig); // alias
 router.post('/instructor/:id/regen-key', verifyInstructorToken, regenStreamKey);
+router.post('/instructor/classes/:id/regenerate-key', verifyInstructorToken, regenStreamKey); // alias
 
 // ── Student Routes (userAuth) ──────────────────────────────────────────────
 router.get('/student/by-course/:courseId', userAuth, getClassesByCourse);

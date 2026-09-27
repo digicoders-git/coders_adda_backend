@@ -1,17 +1,76 @@
 import LiveSession from '../models/liveSession.model.js';
+import LiveClass from '../models/liveClass.model.js';
+
+const hlsBase = process.env.SRS_HLS_BASE || 'https://live.codersadda.com/live';
+
+// Helper to format LiveClass to Flutter LiveSession model shape
+const formatLiveClassForApp = (doc) => {
+  let appStatus = 'scheduled';
+  if (doc.appVisibility === 'LIVE' || doc.status === 'LIVE') {
+    appStatus = 'live';
+  } else if (doc.status === 'SCHEDULED') {
+    appStatus = 'scheduled';
+  } else {
+    appStatus = 'ended';
+  }
+
+  const playbackUrl = doc.streamName ? `${hlsBase}/${doc.streamName}.m3u8` : '';
+
+  return {
+    _id: doc._id,
+    id: doc._id,
+    title: doc.title,
+    course: doc.courseId ? {
+      _id: doc.courseId._id || doc.courseId,
+      title: doc.courseId.title || 'Course',
+    } : null,
+    teacher: doc.instructorId ? {
+      _id: doc.instructorId._id || doc.instructorId,
+      fullName: doc.instructorId.fullName || 'Instructor',
+    } : null,
+    teacherName: doc.instructorId?.fullName || 'Instructor',
+    topic: doc.description || doc.title,
+    scheduledAt: doc.scheduledAt,
+    durationMinutes: doc.expectedDurationMinutes || 60,
+    status: appStatus,
+    playbackUrl: playbackUrl,
+    recordingUrl: doc.recordingUrl || '',
+    thumbnailUrl: '',
+    viewerCount: 0,
+    isLiveClass: true,
+  };
+};
 
 // GET /live-session/by-course/:courseId — student use
 export const getSessionsByCourse = async (req, res) => {
   try {
-    const sessions = await LiveSession.find({
-      course: req.params.courseId,
+    const { courseId } = req.params;
+
+    // Fetch modern LiveClass records
+    const liveClasses = await LiveClass.find({
+      courseId,
+      status: { $ne: 'CANCELLED' },
+      appVisibility: { $in: ['LIVE', 'RECORDED', 'HIDDEN'] },
+    })
+      .populate('courseId', 'title')
+      .populate('instructorId', 'fullName')
+      .sort({ scheduledAt: -1 })
+      .lean();
+
+    // Fetch legacy LiveSession records
+    const legacySessions = await LiveSession.find({
+      course: courseId,
       isActive: true,
     })
       .populate('course', 'title')
       .populate('teacher', 'fullName')
-      .sort({ scheduledAt: -1 });
+      .sort({ scheduledAt: -1 })
+      .lean();
 
-    res.json(sessions);
+    const formattedLiveClasses = liveClasses.map(formatLiveClassForApp);
+    const combined = [...formattedLiveClasses, ...legacySessions];
+
+    res.json(combined);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -20,15 +79,27 @@ export const getSessionsByCourse = async (req, res) => {
 // GET /live-session/upcoming — all upcoming sessions
 export const getUpcomingSessions = async (req, res) => {
   try {
-    const sessions = await LiveSession.find({
+    const liveClasses = await LiveClass.find({
+      status: { $in: ['SCHEDULED', 'LIVE_HIDDEN', 'LIVE'] },
+    })
+      .populate('courseId', 'title')
+      .populate('instructorId', 'fullName')
+      .sort({ scheduledAt: 1 })
+      .lean();
+
+    const legacySessions = await LiveSession.find({
       status: { $in: ['scheduled', 'live'] },
       isActive: true,
     })
       .populate('course', 'title')
       .populate('teacher', 'fullName')
-      .sort({ scheduledAt: 1 });
+      .sort({ scheduledAt: 1 })
+      .lean();
 
-    res.json(sessions);
+    const formattedLiveClasses = liveClasses.map(formatLiveClassForApp);
+    const combined = [...formattedLiveClasses, ...legacySessions];
+
+    res.json(combined);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -37,6 +108,15 @@ export const getUpcomingSessions = async (req, res) => {
 // GET /live-session/:id — single session
 export const getSessionById = async (req, res) => {
   try {
+    const liveClass = await LiveClass.findById(req.params.id)
+      .populate('courseId', 'title')
+      .populate('instructorId', 'fullName')
+      .lean();
+
+    if (liveClass) {
+      return res.json(formatLiveClassForApp(liveClass));
+    }
+
     const session = await LiveSession.findById(req.params.id)
       .populate('course', 'title')
       .populate('teacher', 'fullName');
@@ -49,7 +129,6 @@ export const getSessionById = async (req, res) => {
 };
 
 // POST /live-session/admin/create — admin create
-// Admin manually provides: playbackUrl, streamKey (optional), ingestEndpoint (optional)
 export const createSession = async (req, res) => {
   try {
     const session = await LiveSession.create(req.body);
@@ -92,3 +171,4 @@ export const deleteSession = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
