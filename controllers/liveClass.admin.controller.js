@@ -45,7 +45,7 @@ export const createLiveClass = async (req, res) => {
 
     // Validate references exist
     const [course, instructor] = await Promise.all([
-      Course.findById(courseId).select('title'),
+      Course.findById(courseId).select('title thumbnail'),
       Instructor.findById(instructorId).select('fullName'),
     ]);
 
@@ -53,10 +53,16 @@ export const createLiveClass = async (req, res) => {
     if (!instructor) return res.status(404).json({ success: false, message: 'Instructor not found' });
 
     // Handle thumbnail
+    const getBaseUrl = () => {
+      const b = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
+      return b.includes("onrender.com") ? "https://api.codersadda.com" : b;
+    };
+
     let thumbnailUrl = req.body.thumbnailUrl || '';
     if (req.file) {
-      const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
-      thumbnailUrl = `${baseUrl}/uploads/courses/thumbnails/${req.file.filename}`;
+      thumbnailUrl = `${getBaseUrl()}/uploads/courses/thumbnails/${req.file.filename}`;
+    } else if (!thumbnailUrl && course?.thumbnail) {
+      thumbnailUrl = course.thumbnail.url || course.thumbnail.localUrl || (typeof course.thumbnail === 'string' ? course.thumbnail : '');
     }
 
     // Generate stream credentials
@@ -97,7 +103,7 @@ export const getAllLiveClasses = async (req, res) => {
   try {
     const classes = await LiveClass.find()
       .sort({ scheduledAt: -1 })
-      .populate('courseId', 'title')
+      .populate('courseId', 'title thumbnail')
       .populate('instructorId', 'fullName')
       .select('-streamSecretEncrypted')
       .lean();

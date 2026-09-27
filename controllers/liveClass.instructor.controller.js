@@ -17,7 +17,7 @@ export const getMyClasses = async (req, res) => {
 
     const classes = await LiveClass.find({ instructorId })
       .sort({ scheduledAt: -1 })
-      .populate('courseId', 'title')
+      .populate('courseId', 'title thumbnail')
       .select('-streamSecretEncrypted')
       .lean();
 

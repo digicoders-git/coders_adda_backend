@@ -16,6 +16,16 @@ const formatLiveClassForApp = (doc) => {
 
   const playbackUrl = doc.streamName ? `${hlsBase}/${doc.streamName}.m3u8` : '';
 
+  let thumb = doc.thumbnailUrl || '';
+  if (!thumb && doc.courseId?.thumbnail) {
+    thumb = doc.courseId.thumbnail.url || doc.courseId.thumbnail.localUrl || (typeof doc.courseId.thumbnail === 'string' ? doc.courseId.thumbnail : '');
+  }
+  if (thumb && thumb.includes('onrender.com')) {
+    thumb = thumb.replace(/https?:\/\/[^\/]+/, 'https://api.codersadda.com');
+  } else if (thumb && thumb.startsWith('/')) {
+    thumb = `https://api.codersadda.com${thumb}`;
+  }
+
   return {
     _id: doc._id,
     id: doc._id,
@@ -35,7 +45,7 @@ const formatLiveClassForApp = (doc) => {
     status: appStatus,
     playbackUrl: playbackUrl,
     recordingUrl: doc.recordingUrl || '',
-    thumbnailUrl: doc.thumbnailUrl || '',
+    thumbnailUrl: thumb,
     viewerCount: 0,
     isLiveClass: true,
   };
@@ -52,7 +62,7 @@ export const getSessionsByCourse = async (req, res) => {
       status: { $ne: 'CANCELLED' },
       appVisibility: { $in: ['LIVE', 'RECORDED', 'HIDDEN'] },
     })
-      .populate('courseId', 'title')
+      .populate('courseId', 'title thumbnail')
       .populate('instructorId', 'fullName')
       .sort({ scheduledAt: -1 })
       .lean();
@@ -82,7 +92,7 @@ export const getUpcomingSessions = async (req, res) => {
     const liveClasses = await LiveClass.find({
       status: { $in: ['SCHEDULED', 'LIVE_HIDDEN', 'LIVE'] },
     })
-      .populate('courseId', 'title')
+      .populate('courseId', 'title thumbnail')
       .populate('instructorId', 'fullName')
       .sort({ scheduledAt: 1 })
       .lean();
