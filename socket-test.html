@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Coders Adda - Progress Socket Tester</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
+    <style>
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: #0f172a;
+        color: #e5e7eb;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        margin: 0;
+        padding: 20px;
+        box-sizing: border-box;
+      }
+
+      .card {
+        background: #020617;
+        padding: 25px;
+        border-radius: 12px;
+        width: 100%;
+        max-width: 450px;
+        box-shadow: 0 0 25px rgba(56, 189, 248, 0.2);
+      }
+
+      h2 {
+        text-align: center;
+        color: #38bdf8;
+        margin-top: 0;
+        margin-bottom: 20px;
+        font-size: 1.5rem;
+      }
+
+      label {
+        font-size: 13px;
+        color: #94a3b8;
+        display: block;
+        margin-bottom: 4px;
+      }
+
+      input {
+        width: 100%;
+        padding: 12px;
+        margin-bottom: 16px;
+        border-radius: 8px;
+        outline: none;
+        background: #0f172a;
+        border: 1px solid #1e293b;
+        color: white;
+        box-sizing: border-box;
+        transition: border-color 0.3s;
+      }
+
+      input:focus {
+        border-color: #38bdf8;
+      }
+
+      .btn-group {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      button {
+        width: 100%;
+        padding: 12px;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 14px;
+        transition: opacity 0.2s;
+      }
+
+      button:active {
+        opacity: 0.8;
+      }
+
+      .auth-btn {
+        background: #22c55e;
+        color: #020617;
+      }
+
+      .progress-btn {
+        background: #38bdf8;
+        color: #020617;
+      }
+
+      .log {
+        margin-top: 20px;
+        background: #000;
+        padding: 12px;
+        border-radius: 8px;
+        font-family: "Courier New", Courier, monospace;
+        font-size: 12px;
+        height: 150px;
+        overflow-y: auto;
+        border: 1px solid #1e293b;
+      }
+
+      .success {
+        color: #22c55e;
+      }
+      .error {
+        color: #ef4444;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h2>📡 Progress Socket Tester</h2>
+
+      <label>Backend URL</label>
+      <input id="backendUrl" value="http://localhost:3300" />
+
+      <label>User JWT Token</label>
+      <input id="token" placeholder="Paste JWT token here" />
+
+      <label>Course ID</label>
+      <input id="courseId" />
+
+      <label>Topic ID</label>
+      <input id="topicId" />
+
+      <label>Lecture ID</label>
+      <input id="lectureId" />
+
+      <label>Watched Seconds</label>
+      <input id="watchedSeconds" type="number" value="10" />
+
+      <label>Duration Seconds</label>
+      <input id="durationSeconds" type="number" value="100" />
+
+      <div class="btn-group">
+        <button class="auth-btn" onclick="connectAndAuth()">
+          🔑 Connect & Authenticate
+        </button>
+        <button class="progress-btn" onclick="sendProgress()">
+          📤 Send Progress
+        </button>
+      </div>
+
+      <div class="log" id="logBox"></div>
+    </div>
+
+    <script>
+      let socket = null;
+
+      const logBox = document.getElementById("logBox");
+
+      function log(message, type = "success") {
+        const div = document.createElement("div");
+        div.className = type;
+        div.innerText = message;
+        logBox.appendChild(div);
+        logBox.scrollTop = logBox.scrollHeight;
+      }
+
+      function connectAndAuth() {
+        const backendUrl = document.getElementById("backendUrl").value;
+        const token = document.getElementById("token").value;
+
+        if (!backendUrl || !token) {
+          alert("Backend URL and Token required");
+          return;
+        }
+
+        socket = io(backendUrl);
+
+        socket.on("connect", () => {
+          log("✅ Socket connected");
+          socket.emit("auth", token);
+          log("🔑 Auth event sent");
+        });
+
+        socket.on("progress:saved", (data) => {
+          log("✅ Progress Saved: " + JSON.stringify(data), "success");
+        });
+
+        socket.on("progress:error", (err) => {
+          log("❌ Error: " + JSON.stringify(err), "error");
+        });
+
+        socket.on("disconnect", () => {
+          log("❌ Socket disconnected", "error");
+        });
+      }
+
+      function sendProgress() {
+        if (!socket) {
+          alert("Connect & Authenticate first!");
+          return;
+        }
+
+        const payload = {
+          courseId: document.getElementById("courseId").value,
+          topicId: document.getElementById("topicId").value,
+          lectureId: document.getElementById("lectureId").value,
+          watchedSeconds: Number(
+            document.getElementById("watchedSeconds").value,
+          ),
+          durationSeconds: Number(
+            document.getElementById("durationSeconds").value,
+          ),
+          isCompleted: false,
+        };
+
+        socket.emit("progress:update", payload);
+        log("📤 Progress sent: " + JSON.stringify(payload));
+      }
+    </script>
+  </body>
+</html>

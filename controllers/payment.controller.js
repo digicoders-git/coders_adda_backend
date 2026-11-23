@@ -1,0 +1,519 @@
+import crypto from "crypto";
+import mongoose from "mongoose";
+import razorpay from "../config/razorpay.js";
+import Payment from "../models/payment.model.js";
+import User from "../models/user.model.js";
+import Coupon from "../models/coupon.model.js";
+import { purchasableItemsMap } from "../services/purchasableItemsMap.js";
+import { generateSlipBuffer } from "../utils/generateSlip.js";
+import { sendCustomSms } from "../utils/sendSms.js";
+import { calculateInstructorEarning } from "../utils/earningHandler.js";
+
+/* ===============================
+   1️⃣ CREATE ORDER
+================================ */
+export const createOrder = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { itemType, itemId, couponCode } = req.body;
+
+    const config = purchasableItemsMap[itemType];
+    if (!config) return res.status(400).json({ message: "Invalid item type" });
+
+    const item = await config.model.findById(itemId);
+    if (!item) return res.status(404).json({ message: "Item not found" });
+
+    // Lectures don't have a priceType — skip this check for them
+    if (config.priceTypeField && item[config.priceTypeField] === "free") {
+      return res.status(400).json({ message: "This item is free. Use free enroll API." });
+    }
+
+    const amount = item[config.priceField];
+
+    // 🔥 Coupon Logic Injection
+    let finalAmount = amount;
+    let discountAmount = 0;
+    let appliedCoupon = null;
+
+    if (couponCode) {
+      const coupon = await Coupon.findOne({ code: couponCode.toUpperCase(), isActive: true });
+
+      if (!coupon) {
+        return res.status(400).json({ message: "Invalid or inactive coupon" });
+      }
+
+      if (coupon.validTill && new Date(coupon.validTill) < new Date()) {
+        return res.status(400).json({ message: "Coupon expired" });
+      }
+
+      if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) {
+        return res.status(400).json({ message: "Coupon limit reached" });
+      }
+
+      if (coupon.usedBy && coupon.usedBy.includes(userId)) {
+        return res.status(400).json({ message: "You have already used this coupon" });
+      }
+
+      if (amount < coupon.minPurchaseAmount) {
+        return res.status(400).json({ message: `Minimum purchase of ₹${coupon.minPurchaseAmount} required for this coupon` });
+      }
+
+      discountAmount = (Number(amount) * Number(coupon.discountPercent)) / 100;
+
+      if (coupon.maxDiscountAmount && Number(coupon.maxDiscountAmount) > 0) {
+        discountAmount = Math.min(discountAmount, Number(coupon.maxDiscountAmount));
+      }
+
+      finalAmount = Math.max(0, amount - discountAmount);
+      appliedCoupon = coupon;
+    }
+
+    const order = await razorpay.orders.create({
+      amount: Math.round(finalAmount * 100), // Ensuring it's an integer
+      currency: "INR",
+      receipt: "rcpt_" + Date.now()
+    });
+
+    // 🔥 DB me create karo (full response save)
+    const payment = await Payment.create({
+      user: userId,
+      itemType,
+      itemId,
+      amount: finalAmount, // Save actual amount user paid
+      coupon: appliedCoupon ? {
+        code: appliedCoupon.code,
+        discountAmount: discountAmount
+      } : undefined,
+      razorpay: {
+        order: order,
+        status: "created"
+      },
+      status: "created"
+    });
+
+    return res.json({
+      success: true,
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      key: process.env.RAZORPAY_KEY_ID
+    });
+  } catch (err) {
+    console.error("Create order error:", err);
+    const statusCode = err.statusCode || 500;
+    const message = err.error?.description || err.message || "Order creation failed";
+    return res.status(statusCode).json({ success: false, message });
+  }
+};
+
+/* ===============================
+   2️⃣ VERIFY PAYMENT
+================================ */
+export const verifyPayment = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature
+    } = req.body;
+
+    const payment = await Payment.findOne({ "razorpay.order.id": razorpay_order_id });
+
+    if (!payment) {
+      return res.status(404).json({ message: "Payment record not found" });
+    }
+
+    // 🔐 Verify signature
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(body)
+      .digest("hex");
+
+    if (expectedSignature !== razorpay_signature) {
+      // ❌ FAILED PAYMENT
+      payment.status = "failed";
+      payment.razorpay.payment = req.body;
+      payment.razorpay.status = "failed";
+      payment.failureReason = "Signature mismatch";
+      await payment.save();
+
+      return res.status(400).json({ message: "Invalid payment signature" });
+    }
+
+    // ✅ SUCCESS PAYMENT
+    payment.status = "success";
+    payment.razorpay.payment = req.body;
+    payment.razorpay.status = "captured";
+    await payment.save();
+
+    // ✅ ONLY COURSE CASE me user schema update hoga
+    // if (payment.itemType === "course") {
+    //   await User.findByIdAndUpdate(userId, {
+    //     $addToSet: { purchaseCourses: payment.itemId }
+    //   });
+    // }
+
+    // const user = await User.findById(userId);
+
+    // const config = purchasableItemsMap[payment.itemType];
+    // if (!config) throw new Error("Invalid item type");
+
+    // await config.unlock(user, payment.itemId);
+    // await user.save();
+
+    const user = await User.findById(userId);
+
+    const config = purchasableItemsMap[payment.itemType];
+    if (!config) throw new Error("Invalid item type");
+
+    // 🔥 Pass payment details so lecture unlock can store paymentId
+    const paymentDetails = {
+      paymentId: razorpay_payment_id,
+      orderId: razorpay_order_id
+    };
+    await config.unlock(user, payment.itemId, paymentDetails);
+    await user.save();
+
+    payment.status = "success";
+    payment.razorpay.payment = req.body;
+    payment.razorpay.status = "captured";
+    await payment.save();
+
+    // 🔥 Calculate Instructor Earning
+    if (payment.itemType === "course") {
+      await calculateInstructorEarning(payment.itemId, payment.amount);
+    }
+
+    // 🔥 Increment Coupon Usage Count
+    if (payment.coupon?.code) {
+      await Coupon.findOneAndUpdate(
+        { code: payment.coupon.code.toUpperCase() },
+        { 
+          $inc: { usedCount: 1 },
+          $push: { usedBy: userId }
+        }
+      );
+    }
+
+
+    return res.json({
+      success: true,
+      message: "Payment successful & recorded"
+    });
+  } catch (err) {
+    console.error("Verify payment error:", err);
+    return res.status(500).json({ message: "Payment verification failed" });
+  }
+};
+
+/* ===============================
+   3️⃣ RECORD PAYMENT FAILURE
+================================ */
+export const recordPaymentFailure = async (req, res) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, error_description, error_reason } = req.body;
+
+    const payment = await Payment.findOne({ "razorpay.order.id": razorpay_order_id });
+
+    if (!payment) {
+      return res.status(404).json({ message: "Payment record not found" });
+    }
+
+    payment.status = "failed";
+    payment.razorpay.status = "failed";
+    payment.razorpay.payment = { id: razorpay_payment_id, error: req.body };
+    payment.failureReason = error_description || error_reason || "Payment Cancelled / Failed";
+
+    await payment.save();
+
+    return res.json({ success: true, message: "Failure recorded" });
+  } catch (err) {
+    console.error("Record failure error:", err);
+    return res.status(500).json({ message: "Failed to record payment failure" });
+  }
+};
+
+/* ===============================
+   4️⃣ WALLET PAYMENT
+================================ */
+export const payWithWallet = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { itemType, itemId, couponCode } = req.body;
+
+    const config = purchasableItemsMap[itemType];
+    if (!config) return res.status(400).json({ success: false, message: "Invalid item type" });
+
+    const item = await config.model.findById(itemId);
+    if (!item) return res.status(404).json({ success: false, message: "Item not found" });
+
+    const amount = item[config.priceField];
+
+    // 🔥 Coupon Logic
+    let finalAmount = amount;
+    let discountAmount = 0;
+    let appliedCoupon = null;
+
+    if (couponCode) {
+      const coupon = await Coupon.findOne({ code: couponCode.toUpperCase(), isActive: true });
+
+      if (!coupon) {
+        return res.status(400).json({ success: false, message: "Invalid or inactive coupon" });
+      }
+
+      if (coupon.validTill && new Date(coupon.validTill) < new Date()) {
+        return res.status(400).json({ success: false, message: "Coupon expired" });
+      }
+
+      if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) {
+        return res.status(400).json({ success: false, message: "Coupon limit reached" });
+      }
+
+      if (coupon.usedBy && coupon.usedBy.includes(userId)) {
+        return res.status(400).json({ success: false, message: "You have already used this coupon" });
+      }
+
+      if (amount < coupon.minPurchaseAmount) {
+        return res.status(400).json({ success: false, message: `Minimum purchase of ₹${coupon.minPurchaseAmount} required` });
+      }
+
+      discountAmount = (amount * coupon.discountPercent) / 100;
+      if (coupon.maxDiscountAmount) {
+        discountAmount = Math.min(discountAmount, coupon.maxDiscountAmount);
+      }
+
+      finalAmount = Math.max(0, amount - discountAmount);
+      appliedCoupon = coupon;
+    }
+
+    const user = await User.findById(userId);
+
+    // Already purchased/unlocked check
+    if (itemType === "course" && user.purchaseCourses.includes(itemId)) {
+      return res.status(400).json({ success: false, message: "You are already enrolled in this course." });
+    }
+    if (itemType === "ebook" && user.purchaseEbooks.includes(itemId)) {
+      return res.status(400).json({ success: false, message: "You already own this E-Book." });
+    }
+    if ((itemType === "job" || itemType === "jobV2" || itemType === "jobV3") && user.purchaseJobs.includes(itemId)) {
+      return res.status(400).json({ success: false, message: "You have already unlocked this job." });
+    }
+    // Note: Subscription allows re-purchase/upgrade — handled in unlock logic
+
+    // 🔥 Check Balance
+    if (user.walletBalance < finalAmount) {
+      return res.status(400).json({
+        success: false,
+        message: "Insufficient wallet balance."
+      });
+    }
+
+    // 🔥 Deduct Balance
+    user.walletBalance -= finalAmount;
+
+    // 🔥 Unlock Item
+    await config.unlock(user, itemId);
+    await user.save();
+
+    // 🔥 Create Payment Record
+    await Payment.create({
+      user: userId,
+      itemType,
+      itemId,
+      amount: finalAmount,
+      paymentMethod: "wallet",
+      status: "success",
+      coupon: appliedCoupon ? {
+        code: appliedCoupon.code,
+        discountAmount: discountAmount
+      } : undefined
+    });
+
+    // 💳 Increment Coupon Count and add user
+    if (appliedCoupon) {
+      appliedCoupon.usedCount += 1;
+      appliedCoupon.usedBy.push(userId);
+      await appliedCoupon.save();
+    }
+
+    // 🔥 Calculate Instructor Earning
+    if (itemType === "course") {
+      await calculateInstructorEarning(itemId, amount);
+    }
+
+    return res.json({
+      success: true,
+      message: `${itemType.charAt(0).toUpperCase() + itemType.slice(1)} purchased successfully using wallet balance.`,
+      newBalance: user.walletBalance
+    });
+
+  } catch (error) {
+    console.error("Wallet payment error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/* ===============================
+   5️⃣ WALLET TOP-UP (DEPOSIT)
+================================ */
+export const topupWallet = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { amount } = req.body;
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ success: false, message: "Invalid amount" });
+    }
+    if (amount > 2000) {
+      return res.status(400).json({ success: false, message: "Maximum top-up limit is ₹2,000 per transaction" });
+    }
+
+    const user = await User.findById(userId);
+    user.walletBalance = (user.walletBalance || 0) + Number(amount);
+    await user.save();
+
+    await Payment.create({
+      user: userId,
+      itemType: "wallet_deposit",
+      itemId: userId,
+      amount: Number(amount),
+      paymentMethod: "razorpay_simulated",
+      status: "success"
+    });
+
+    return res.json({
+      success: true,
+      message: `Successfully topped up ₹${amount}`,
+      balance: user.walletBalance
+    });
+  } catch (err) {
+    console.error("Wallet topup error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/* ===============================
+   6️⃣ WALLET WITHDRAWAL
+================================ */
+export const withdrawWallet = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { amount, upiId } = req.body;
+
+    if (!amount || amount < 500) {
+      return res.status(400).json({ success: false, message: "Minimum withdrawal amount is ₹500" });
+    }
+    if (!upiId) {
+      return res.status(400).json({ success: false, message: "UPI ID is required" });
+    }
+
+    const user = await User.findById(userId);
+
+    // Enforce 500 minimum for ambassadors
+    if (user.isAmbassador && user.walletBalance < 500) {
+      return res.status(400).json({ success: false, message: "Ambassadors can only withdraw when balance is at least ₹500" });
+    }
+
+    if (user.walletBalance < amount) {
+      return res.status(400).json({ success: false, message: "Insufficient wallet balance" });
+    }
+
+    user.walletBalance -= Number(amount);
+    await user.save();
+
+    await Payment.create({
+      user: userId,
+      itemType: "wallet_withdrawal",
+      itemId: userId,
+      amount: Number(amount),
+      paymentMethod: "upi",
+      status: "success",
+      notes: `Withdrawn to ${upiId}`
+    });
+
+    if (user.mobile) {
+      const smsMessage = `Your withdrawal of Rs.${amount} was successful. Remaining balance: Rs.${user.walletBalance}.`;
+      await sendCustomSms(user.mobile, smsMessage);
+    }
+
+    return res.json({
+      success: true,
+      message: `Successfully requested withdrawal of ₹${amount} to ${upiId}`,
+      balance: user.walletBalance
+    });
+  } catch (err) {
+    console.error("Wallet withdrawal error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const downloadTransactionSlip = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const payment = await Payment.findById(id);
+
+    if (!payment) {
+      return res.status(404).json({ success: false, message: "Transaction not found" });
+    }
+
+    const user = await User.findById(payment.user);
+    const pdfBuffer = await generateSlipBuffer(payment, user);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=slip_${payment._id}.pdf`);
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error("Download Slip Error:", err);
+    res.status(500).json({ success: false, message: "Could not generate slip" });
+  }
+};
+
+export const getMyPaymentHistory = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const payments = await Payment.find({ user: userId })
+      .sort({ createdAt: -1 })
+      .lean();
+      
+    // Attach item details for frontend
+    for (let p of payments) {
+      p.itemDetails = { title: p.itemType.toUpperCase() };
+      
+      try {
+        if (p.itemType === 'course') {
+          const Course = mongoose.model('Course');
+          const course = await Course.findById(p.itemId);
+          if (course) p.itemDetails.title = course.title;
+        } else if (p.itemType === 'ebook') {
+          const Ebook = mongoose.model('Ebook');
+          const ebook = await Ebook.findById(p.itemId);
+          if (ebook) p.itemDetails.title = ebook.title;
+        } else if (p.itemType === 'subscription') {
+          const Subscription = mongoose.model('Subscription');
+          const sub = await Subscription.findById(p.itemId);
+          if (sub) p.itemDetails.title = sub.planType;
+        } else if (p.itemType === 'job') {
+          const Job = mongoose.model('Job');
+          const job = await Job.findById(p.itemId);
+          if (job) p.itemDetails.title = job.jobTitle;
+        } else if (p.itemType === 'wallet_deposit') {
+          p.itemDetails.title = "Wallet Top-up";
+        } else if (p.itemType === 'wallet_withdrawal') {
+          p.itemDetails.title = "Wallet Withdrawal";
+        } else if (p.itemType === 'referral_reward') {
+          p.itemDetails.title = "Referral Reward";
+        }
+      } catch (e) {
+        // ignore errors if model not found
+      }
+    }
+
+    return res.status(200).json({ success: true, data: payments });
+  } catch (err) {
+    console.error("Get Payment History Error:", err);
+    return res.status(500).json({ success: false, message: "Could not fetch payment history" });
+  }
+};
